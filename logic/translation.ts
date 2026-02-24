@@ -2,26 +2,14 @@
 // translation.ts
 // Generates a SpriteResult from an uploaded image file.
 //
-// When VITE_GEMINI_API_KEY is set AND the image appears to be a
-// Lite-Brite photo, the new two-stage Gemini pipeline is used.
-// Falls back to the canvas pipeline for non-Lite-Brite images.
+// Tries the Lite-Brite pipeline first (Gemini via /api/gemini proxy).
+// Falls back to the canvas pipeline on error or for non-Lite-Brite images.
 // ─────────────────────────────────────────────────────────
 
 import { SpriteResult, SpriteMatrix } from "../types";
 import { fileToBase64, getImageDimensions } from "../utils/imageUtils.js";
 import { convertLiteBriteToSprite } from "../utils/litebrite/liteBriteConverter";
 import type { LiteBriteConversionResult, PegGrid } from "../utils/litebrite/types";
-
-// ── Env ────────────────────────────────────────────────────
-
-const getGeminiApiKey = (): string | undefined => {
-  const env =
-    (typeof import.meta !== "undefined" &&
-      (import.meta as { env?: { VITE_GEMINI_API_KEY?: string } }).env) ??
-    {};
-  const key = env.VITE_GEMINI_API_KEY;
-  return typeof key === "string" && key.trim() ? key.trim() : undefined;
-};
 
 // ── Color helpers (kept for canvas pipeline) ───────────────
 
@@ -322,41 +310,34 @@ const normalizeAiDescription = (s: string): string => {
 
 /**
  * Main entry point.
- * When VITE_GEMINI_API_KEY is set, uses the new two-stage Lite-Brite
- * pipeline (board crop → Gemini semantic → Gemini grid → sprite).
- * Falls back to the canvas pipeline if no API key or on error.
+ * Tries the Lite-Brite pipeline first (board crop → Gemini via /api/gemini → sprite).
+ * Falls back to the canvas pipeline on error.
  */
 export const generateSpriteFromImageFromFile = async (
   file: File
 ): Promise<GenerateSpriteFromFileResult> => {
-  const geminiKey = getGeminiApiKey();
+  try {
+    console.log("[Sprite] Trying Lite-Brite pipeline...");
+    const liteBriteResult = await convertLiteBriteToSprite(file);
+    const result = liteBriteResultToSpriteResult(liteBriteResult);
 
-  if (geminiKey) {
-    console.log("[Sprite] Gemini API key found – using Lite-Brite pipeline");
-    try {
-      const liteBriteResult = await convertLiteBriteToSprite(file, geminiKey);
-      const result = liteBriteResultToSpriteResult(liteBriteResult);
+    console.log("[Sprite] Lite-Brite conversion successful", {
+      subject: liteBriteResult.subject,
+      dimensions: result.dimensions,
+      colors: liteBriteResult.colors.map((c) => c.name),
+    });
 
-      console.log("[Sprite] Lite-Brite conversion successful", {
-        subject: liteBriteResult.subject,
-        dimensions: result.dimensions,
-        colors: liteBriteResult.colors.map((c) => c.name),
-      });
-
-      return {
-        result,
-        aiGenerated: true,
-        aiDescription: normalizeAiDescription(liteBriteResult.subject),
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(
-        "[Sprite] Lite-Brite pipeline failed, falling back to canvas pipeline:",
-        msg
-      );
-    }
-  } else {
-    console.log("[Sprite] No Gemini API key – using canvas pipeline");
+    return {
+      result,
+      aiGenerated: true,
+      aiDescription: normalizeAiDescription(liteBriteResult.subject),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      "[Sprite] Lite-Brite pipeline failed, falling back to canvas pipeline:",
+      msg
+    );
   }
 
   // Canvas fallback

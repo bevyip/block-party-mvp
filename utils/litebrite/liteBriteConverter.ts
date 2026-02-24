@@ -21,21 +21,16 @@ import {
 import type { LiteBriteConversionResult } from "./types";
 
 export const convertLiteBriteToSprite = async (
-  file: File,
-  apiKey: string
+  file: File
 ): Promise<LiteBriteConversionResult> => {
-  if (!apiKey?.trim()) {
-    throw new Error("Gemini API key is required for Lite-Brite conversion.");
-  }
-
   console.log("[LiteBrite] Step 1: Cropping board from photo...");
   const boardBase64 = await cropBoard(file);
 
   console.log("[LiteBrite] Step 2: Running semantic analysis...");
-  const semanticAnalysis = await runStage1(apiKey, boardBase64);
+  const semanticAnalysis = await runStage1(boardBase64);
 
   console.log("[LiteBrite] Step 3: Generating front/back character grid...");
-  const gridAnalysis = await runStage2(apiKey, boardBase64, semanticAnalysis);
+  const gridAnalysis = await runStage2(boardBase64, semanticAnalysis);
 
   console.log("[LiteBrite] Step 4: Converting front grid to peg map...");
   const rawFrontPegGrid = charGridToPegGrid(gridAnalysis);
@@ -64,7 +59,6 @@ export const convertLiteBriteToSprite = async (
 
   console.log("[LiteBrite] Step 6: Generating side view with Gemini...");
   const sideGridAnalysis = await runStage3(
-    apiKey,
     boardBase64,
     semanticAnalysis,
     gridAnalysis.grid

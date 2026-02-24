@@ -22,12 +22,6 @@ const SidePanel: React.FC<SidePanelProps> = ({
   const [aiDescription, setAiDescription] = useState<string | null>(null);
   const prevSpawningRef = React.useRef(false);
 
-  const geminiConfigured = Boolean(
-    typeof import.meta !== "undefined" &&
-    (import.meta as { env?: { VITE_GEMINI_API_KEY?: string } }).env
-      ?.VITE_GEMINI_API_KEY,
-  );
-
   // Reset function to clear state
   const resetPanel = useCallback(() => {
     setProcessingState(ProcessingStatus.IDLE);
@@ -165,9 +159,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
             <span className="loading-dot" />
           </div>
           <p className="text-sm text-neutral-400">
-            {geminiConfigured
-              ? "Hmm, what could this be...?"
-              : "Hmm, let me see what you created..."}
+            Hmm, what could this be...?
           </p>
         </div>
       )}

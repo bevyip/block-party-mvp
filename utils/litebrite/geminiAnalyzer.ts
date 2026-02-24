@@ -1,11 +1,8 @@
 import type { SemanticAnalysis, GridAnalysis, DetectedColor } from "./types";
 import { LITEBRITE_PALETTE, resolveColorCode } from "./constants";
 
-const MODEL = "gemini-2.0-flash";
-const API_BASE = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
-
-const post = async (apiKey: string, body: object): Promise<unknown> => {
-  const res = await fetch(`${API_BASE}?key=${apiKey}`, {
+const post = async (body: object): Promise<unknown> => {
+  const res = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -67,7 +64,6 @@ Rules:
 - Only include colors actually present as pegs. Ignore the black board background.`;
 
 export const runStage1 = async (
-  apiKey: string,
   boardBase64: string,
 ): Promise<SemanticAnalysis> => {
   console.log("[Gemini Stage 1] Analyzing colors and subject...");
@@ -87,7 +83,7 @@ export const runStage1 = async (
     },
   };
 
-  const raw = (await post(apiKey, body)) as string;
+  const raw = (await post(body)) as string;
   const parsed = parseJson<{
     subject: string;
     colors: string[];
@@ -129,7 +125,11 @@ export const runStage1 = async (
 
   console.log("[Gemini Stage 1] Subject:", parsed.subject, "| Colors:", colors);
 
-  const aspectRatio = parsed.aspectRatio as "wider-than-tall" | "taller-than-wide" | "roughly-square" | undefined;
+  const aspectRatio = parsed.aspectRatio as
+    | "wider-than-tall"
+    | "taller-than-wide"
+    | "roughly-square"
+    | undefined;
   return {
     subject: parsed.subject,
     colors,
@@ -146,7 +146,9 @@ const buildStage2Prompt = (analysis: SemanticAnalysis): string => {
     .map((c) => `"${c.code}" = ${c.name}`)
     .join(", ");
 
-  const aspectRatio = (analysis as SemanticAnalysis & { aspectRatio?: string }).aspectRatio ?? "roughly-square";
+  const aspectRatio =
+    (analysis as SemanticAnalysis & { aspectRatio?: string }).aspectRatio ??
+    "roughly-square";
 
   return `You are looking at a photo of a Lite-Brite board showing: ${analysis.subject}
 
@@ -178,10 +180,10 @@ Return ONLY this JSON (no markdown):
 const coordinatesToGrid = (
   regions: { code: string; pixels: [number, number][] }[],
   width: number,
-  height: number
+  height: number,
 ): string[] => {
   const grid: string[][] = Array.from({ length: height }, () =>
-    Array(width).fill(".")
+    Array(width).fill("."),
   );
 
   for (const region of regions) {
@@ -196,9 +198,8 @@ const coordinatesToGrid = (
 };
 
 export const runStage2 = async (
-  apiKey: string,
   boardBase64: string,
-  analysis: SemanticAnalysis
+  analysis: SemanticAnalysis,
 ): Promise<GridAnalysis> => {
   console.log("[Gemini Stage 2] Generating ASCII grid...");
 
@@ -217,7 +218,7 @@ export const runStage2 = async (
     },
   };
 
-  const raw = (await post(apiKey, body)) as string;
+  const raw = (await post(body)) as string;
   const parsed = parseJson<{
     reasoning?: string;
     grid: string[];
@@ -241,14 +242,22 @@ export const runStage2 = async (
     row
       .split("")
       .map((ch) => (ch === "." || validCodes.has(ch) ? ch : "."))
-      .join("")
+      .join(""),
   );
 
   // Trim empty rows
   let topRow = 0;
   let bottomRow = cleanGrid.length - 1;
-  while (topRow < cleanGrid.length && cleanGrid[topRow].split("").every((c) => c === ".")) topRow++;
-  while (bottomRow > topRow && cleanGrid[bottomRow].split("").every((c) => c === ".")) bottomRow--;
+  while (
+    topRow < cleanGrid.length &&
+    cleanGrid[topRow].split("").every((c) => c === ".")
+  )
+    topRow++;
+  while (
+    bottomRow > topRow &&
+    cleanGrid[bottomRow].split("").every((c) => c === ".")
+  )
+    bottomRow--;
   const trimmedGrid = cleanGrid.slice(topRow, bottomRow + 1);
 
   const colorMap: Record<string, string> = {};
@@ -257,16 +266,17 @@ export const runStage2 = async (
   }
 
   console.log("[Gemini Stage 2] reasoning:", parsed.reasoning ?? "(none)");
-  console.log(`[Gemini Stage 2] Grid: ${trimmedGrid.length} rows × ${trimmedGrid[0]?.length ?? 0} cols`);
+  console.log(
+    `[Gemini Stage 2] Grid: ${trimmedGrid.length} rows × ${trimmedGrid[0]?.length ?? 0} cols`,
+  );
 
   return { grid: trimmedGrid, colorMap };
 };
 
 export const runStage3 = async (
-  apiKey: string,
   boardBase64: string,
   analysis: SemanticAnalysis,
-  frontGrid: string[]
+  frontGrid: string[],
 ): Promise<GridAnalysis> => {
   console.log("[Gemini Stage 3] Generating side view...");
 
@@ -311,7 +321,7 @@ Return ONLY this JSON (no markdown):
     },
   };
 
-  const raw = (await post(apiKey, body)) as string;
+  const raw = (await post(body)) as string;
   const parsed = parseJson<{
     reasoning?: string;
     grid: string[];
@@ -335,14 +345,22 @@ Return ONLY this JSON (no markdown):
     row
       .split("")
       .map((ch) => (ch === "." || validCodes.has(ch) ? ch : "."))
-      .join("")
+      .join(""),
   );
 
   // Trim empty rows top and bottom
   let topRow = 0;
   let bottomRow = cleanGrid.length - 1;
-  while (topRow < cleanGrid.length && cleanGrid[topRow].split("").every((c) => c === ".")) topRow++;
-  while (bottomRow > topRow && cleanGrid[bottomRow].split("").every((c) => c === ".")) bottomRow--;
+  while (
+    topRow < cleanGrid.length &&
+    cleanGrid[topRow].split("").every((c) => c === ".")
+  )
+    topRow++;
+  while (
+    bottomRow > topRow &&
+    cleanGrid[bottomRow].split("").every((c) => c === ".")
+  )
+    bottomRow--;
   const trimmedGrid = cleanGrid.slice(topRow, bottomRow + 1);
 
   const colorMap: Record<string, string> = {};
@@ -351,7 +369,9 @@ Return ONLY this JSON (no markdown):
   }
 
   console.log("[Gemini Stage 3] reasoning:", parsed.reasoning ?? "(none)");
-  console.log(`[Gemini Stage 3] Side grid: ${trimmedGrid.length} rows × ${trimmedGrid[0]?.length ?? 0} cols`);
+  console.log(
+    `[Gemini Stage 3] Side grid: ${trimmedGrid.length} rows × ${trimmedGrid[0]?.length ?? 0} cols`,
+  );
 
   return { grid: trimmedGrid, colorMap };
 };
