@@ -11,7 +11,7 @@ export enum EntityType {
   FLOWER = 'FLOWER',
   RIVER_SEGMENT = 'RIVER_SEGMENT',
   BRIDGE = 'BRIDGE',
-  GRASS_PATCH = 'GRASS_PATCH'
+  GRASS_PATCH = 'GRASS_PATCH',
 }
 
 export interface Obstacle {
@@ -20,6 +20,9 @@ export interface Obstacle {
   bounds: Rect; // The collision box
   renderBounds: Rect; // The drawing area (can be larger than collision, e.g., tree top)
   variant: number; // For visual variety
+  // Only relevant when type is FLOWER
+  flowerStage?: 1 | 2 | 3;
+  flowerGrowthTimer?: number; // timestamp (Date.now()) when this flower next advances
 }
 
 export interface SpriteMatrix {

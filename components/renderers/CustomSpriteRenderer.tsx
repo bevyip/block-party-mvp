@@ -1,79 +1,61 @@
 import { Sprite } from '../../types';
 import { SCALE } from '../../constants';
+import { LITEBRITE_DISPLAY_SCALE } from '../../utils/litebrite/constants';
+import { getRenderedContentBounds } from '../../utils/litebrite/gridRenderer';
+import type { PegGrid } from '../../utils/litebrite/types';
 
-const s = (val: number) => Math.floor(val * SCALE);
+export interface CustomSpriteBounds {
+  /** X offset of actual content from sprite origin, in display pixels */
+  contentX: number;
+  /** Y offset of actual content from sprite origin, in display pixels */
+  contentY: number;
+  /** Width of actual content in display pixels */
+  contentWidth: number;
+  /** Height of actual content in display pixels */
+  contentHeight: number;
+}
 
 export const drawCustomSprite = (
-    ctx: CanvasRenderingContext2D,
-    spr: Sprite
-) => {
-    if (!spr.isCustom || !spr.customSprite) {
-        return;
+  ctx: CanvasRenderingContext2D,
+  sprite: Sprite
+): CustomSpriteBounds | null => {
+  if (!sprite.customSprite) return null;
+
+  const matrix = sprite.customSprite.matrix;
+  const view = matrix[sprite.facing] ?? matrix.front;
+  if (!view || view.length === 0) return null;
+
+  // Convert string[][] back to PegGrid for bounds calculation
+  const pegGrid: PegGrid = view.map((row) =>
+    row.map((c) => (c === 'transparent' ? null : c))
+  );
+
+  const bounds = getRenderedContentBounds(pegGrid);
+
+  // Idle bob (same as default sprites: slower, heavier bob)
+  const bob = Math.floor(Math.sin(sprite.bobOffset) * 1.2 * SCALE);
+  const sy = Math.floor(sprite.y - Math.abs(bob));
+
+  ctx.save();
+  ctx.translate(Math.floor(sprite.x), sy);
+  ctx.scale(LITEBRITE_DISPLAY_SCALE, LITEBRITE_DISPLAY_SCALE);
+
+  for (let row = 0; row < view.length; row++) {
+    for (let col = 0; col < (view[row]?.length ?? 0); col++) {
+      const color = view[row][col];
+      if (!color || color === 'transparent') continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(col * SCALE, row * SCALE, SCALE, SCALE);
     }
+  }
 
-    const bob = Math.floor(Math.sin(spr.bobOffset) * 1.2 * SCALE);
-    const sx = Math.floor(spr.x);
-    const sy = Math.floor(spr.y - Math.abs(bob));
+  ctx.restore();
 
-    // Get the appropriate sprite matrix based on facing direction
-    let pixels: string[][];
-    if (spr.facing === 'front') {
-        pixels = spr.customSprite.matrix.front;
-    } else if (spr.facing === 'left') {
-        pixels = spr.customSprite.matrix.left;
-    } else if (spr.facing === 'right') {
-        pixels = spr.customSprite.matrix.right;
-    } else {
-        pixels = spr.customSprite.matrix.front;
-    }
-
-    if (!pixels || pixels.length === 0) {
-        return;
-    }
-
-    // Get actual sprite width from the pixels matrix (varies by facing direction)
-    const actualSpriteWidth = pixels[0]?.length || spr.customSprite.dimensions.width;
-    const actualSpriteHeight = pixels.length || spr.customSprite.dimensions.height;
-
-    // Draw shadow - width matches the actual sprite width for current facing direction
-    // The sprite's x position is centered based on front/back width, so we need to center the shadow
-    // based on the actual narrower width when facing left/right
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    const shadowWidth = actualSpriteWidth * SCALE;
-    const shadowHeight = s(1);
-    const shadowY = Math.floor(spr.y) + actualSpriteHeight * SCALE;
-    // Calculate shadow X: sprite is centered on front/back width, so offset shadow to center on actual width
-    const frontBackWidth = spr.customSprite.dimensions.width * SCALE;
-    const shadowX = sx + (frontBackWidth - shadowWidth) / 2 + s(2);
-    ctx.fillRect(shadowX, shadowY, shadowWidth, shadowHeight);
-
-    // Draw the pixel matrix
-    let pixelsDrawn = 0;
-    pixels.forEach((row, y) => {
-        if (!row) return;
-        row.forEach((color, x) => {
-            if (color && color !== 'transparent' && color !== '#00000000') {
-                ctx.fillStyle = color;
-                ctx.fillRect(
-                    sx + x * SCALE,
-                    sy + y * SCALE,
-                    SCALE,
-                    SCALE
-                );
-                pixelsDrawn++;
-            }
-        });
-    });
-
-    // Fallback: Draw a visible rectangle if no pixels were drawn (for debugging)
-    if (pixelsDrawn === 0) {
-        ctx.fillStyle = '#ff00ff'; // Magenta fallback color
-        ctx.fillRect(
-            sx,
-            sy,
-            spr.customSprite.dimensions.width * SCALE,
-            spr.customSprite.dimensions.height * SCALE
-        );
-    }
+  // Return content bounds in display pixels (after LITEBRITE_DISPLAY_SCALE)
+  return {
+    contentX: bounds.left * LITEBRITE_DISPLAY_SCALE,
+    contentY: bounds.top * LITEBRITE_DISPLAY_SCALE,
+    contentWidth: bounds.width * LITEBRITE_DISPLAY_SCALE,
+    contentHeight: bounds.height * LITEBRITE_DISPLAY_SCALE,
+  };
 };
-

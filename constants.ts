@@ -10,6 +10,7 @@ export const PALETTE = {
   
   // Detailed Tree Palette - Darker & Earthier
   TREE_TRUNK_DARK: '#3e2723',
+  TREE_TRUNK_DARKEST: '#1a0f0a',
   TREE_TRUNK_MID: '#5d4037',
   TREE_TRUNK_LIGHT: '#8d6e63',
   TREE_LEAVES_DARKEST: '#1a2f14',
@@ -27,7 +28,6 @@ export const PALETTE = {
   FLOWER_CENTER: '#ffff00',
 };
 
-// Updated size: 8x16 pixels (classic ratio, taller for detail)
-export const SPRITE_SIZE = { w: 8 * SCALE, h: 16 * SCALE };
+// Updated size: 8x16 pixels (classic ratio), scaled 1.5x for world objects
+export const SPRITE_SIZE = { w: 8 * SCALE * 1.5, h: 16 * SCALE * 1.5 };
 export const SPRITE_COUNT = 10; // Start with 10 sprites
-

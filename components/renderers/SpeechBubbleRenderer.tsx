@@ -5,12 +5,13 @@ const s = (val: number) => Math.floor(val * SCALE);
 
 export const drawSpeechBubble = (
     ctx: CanvasRenderingContext2D,
-    sprite: Sprite
+    sprite: Sprite,
+    anchor?: { x: number; y: number }
 ) => {
     if (!sprite.bubble) return;
     
-    const bx = Math.floor(sprite.x + SPRITE_SIZE.w/2);
-    const by = Math.floor(sprite.y - 12 * SCALE);
+    const bx = anchor ? Math.floor(anchor.x) : Math.floor(sprite.x + SPRITE_SIZE.w/2);
+    const by = anchor ? Math.floor(anchor.y) : Math.floor(sprite.y - 12 * SCALE);
     
     const bW = s(18);
     const bH = s(14);

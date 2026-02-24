@@ -2,6 +2,8 @@ import { Obstacle } from '../../types';
 import { SCALE, PALETTE } from '../../constants';
 
 const s = (val: number) => Math.floor(val * SCALE);
+const VISUAL_SCALE = 1.3;
+const d = (val: number) => s(val * VISUAL_SCALE);
 
 export const drawRock = (
     ctx: CanvasRenderingContext2D,
@@ -14,52 +16,52 @@ export const drawRock = (
     
     if (o.variant === 0) {
         ctx.fillStyle = PALETTE.ROCK_SHADOW;
-        ctx.fillRect(x + s(2), y + h - s(3), w - s(4), s(3));
-        ctx.fillRect(x + s(1), y + h - s(2), s(1), s(2));
-        ctx.fillRect(x + w - s(2), y + h - s(2), s(1), s(2));
+        ctx.fillRect(x + d(2), y + h - d(3), w - d(4), d(3));
+        ctx.fillRect(x + d(1), y + h - d(2), d(1), d(2));
+        ctx.fillRect(x + w - d(2), y + h - d(2), d(1), d(2));
 
         ctx.fillStyle = PALETTE.ROCK_BASE;
-        ctx.fillRect(x + s(1), y + s(3), w - s(2), h - s(5)); 
-        ctx.fillRect(x, y + s(5), s(1), h - s(8)); 
-        ctx.fillRect(x + w - s(1), y + s(4), s(1), h - s(7)); 
+        ctx.fillRect(x + d(1), y + d(3), w - d(2), h - d(5)); 
+        ctx.fillRect(x, y + d(5), d(1), h - d(8)); 
+        ctx.fillRect(x + w - d(1), y + d(4), d(1), h - d(7)); 
 
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT;
-        ctx.fillRect(x + s(2), y + s(1), w - s(6), s(4)); 
-        ctx.fillRect(x + s(1), y + s(2), s(1), s(3)); 
+        ctx.fillRect(x + d(2), y + d(1), w - d(6), d(4)); 
+        ctx.fillRect(x + d(1), y + d(2), d(1), d(3)); 
         
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT_BRIGHT;
-        ctx.fillRect(x + s(2), y + s(1), w - s(7), s(1)); 
-        ctx.fillRect(x + s(1), y + s(2), s(1), s(1)); 
+        ctx.fillRect(x + d(2), y + d(1), w - d(7), d(1)); 
+        ctx.fillRect(x + d(1), y + d(2), d(1), d(1)); 
     } 
     else if (o.variant === 1) {
         ctx.fillStyle = PALETTE.ROCK_SHADOW;
-        ctx.fillRect(x, y + h - s(3), w, s(3));
+        ctx.fillRect(x, y + h - d(3), w, d(3));
         
         ctx.fillStyle = PALETTE.ROCK_BASE;
-        ctx.fillRect(x + s(1), y + s(4), w - s(2), h - s(6));
+        ctx.fillRect(x + d(1), y + d(4), w - d(2), h - d(6));
         
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT;
-        ctx.fillRect(x + s(2), y + s(3), w - s(4), s(3));
+        ctx.fillRect(x + d(2), y + d(3), w - d(4), d(3));
         
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT_BRIGHT;
-        ctx.fillRect(x + s(3), y + s(3), s(4), s(1));
+        ctx.fillRect(x + d(3), y + d(3), d(4), d(1));
     } 
     else {
         ctx.fillStyle = PALETTE.ROCK_SHADOW;
-        ctx.fillRect(x + s(2), y + h - s(3), w - s(3), s(3));
+        ctx.fillRect(x + d(2), y + h - d(3), w - d(3), d(3));
         
         ctx.fillStyle = PALETTE.ROCK_BASE;
-        ctx.fillRect(x + s(1), y + s(2), w - s(3), h - s(4));
+        ctx.fillRect(x + d(1), y + d(2), w - d(3), h - d(4));
         
         ctx.fillStyle = PALETTE.ROCK_SHADOW;
-        ctx.fillRect(x + s(5), y + s(3), s(1), s(4));
+        ctx.fillRect(x + d(5), y + d(3), d(1), d(4));
 
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT;
-        ctx.fillRect(x + s(2), y + s(1), s(4), s(3));
-        ctx.fillRect(x + s(7), y + s(3), s(3), s(2)); 
+        ctx.fillRect(x + d(2), y + d(1), d(4), d(3));
+        ctx.fillRect(x + d(7), y + d(3), d(3), d(2)); 
         
         ctx.fillStyle = PALETTE.ROCK_HIGHLIGHT_BRIGHT;
-        ctx.fillRect(x + s(2), y + s(1), s(2), s(1));
+        ctx.fillRect(x + d(2), y + d(1), d(2), d(1));
     }
 };
 

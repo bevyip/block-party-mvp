@@ -1,15 +1,21 @@
-import React, { useCallback, useState } from 'react';
-import { SpriteResult, ProcessingStatus } from '../types';
-import { generateSpriteFromImageFromFile } from '../logic/translation.js';
-import SpritePreview from './SpritePreview';
+import React, { useCallback, useState } from "react";
+import { SpriteResult, ProcessingStatus } from "../types";
+import { generateSpriteFromImageFromFile } from "../logic/translation.js";
+import { removeLitebritePreview } from "../utils/litebrite/boardCropper";
+import SpritePreview from "./SpritePreview";
 
 interface SidePanelProps {
   onSpriteConfirm: (sprite: SpriteResult) => void;
   isSpawning: boolean;
 }
 
-const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) => {
-  const [processingState, setProcessingState] = useState<ProcessingStatus>(ProcessingStatus.IDLE);
+const SidePanel: React.FC<SidePanelProps> = ({
+  onSpriteConfirm,
+  isSpawning,
+}) => {
+  const [processingState, setProcessingState] = useState<ProcessingStatus>(
+    ProcessingStatus.IDLE,
+  );
   const [spriteData, setSpriteData] = useState<SpriteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lowConfidenceWarning, setLowConfidenceWarning] = useState(false);
@@ -17,8 +23,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
   const prevSpawningRef = React.useRef(false);
 
   const geminiConfigured = Boolean(
-    typeof import.meta !== 'undefined' &&
-    (import.meta as { env?: { VITE_GEMINI_API_KEY?: string } }).env?.VITE_GEMINI_API_KEY
+    typeof import.meta !== "undefined" &&
+    (import.meta as { env?: { VITE_GEMINI_API_KEY?: string } }).env
+      ?.VITE_GEMINI_API_KEY,
   );
 
   // Reset function to clear state
@@ -29,9 +36,9 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
     setLowConfidenceWarning(false);
     setAiDescription(null);
     // Reset file input
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+    const fileInput = document.getElementById("fileInput") as HTMLInputElement;
     if (fileInput) {
-      fileInput.value = '';
+      fileInput.value = "";
     }
   }, []);
 
@@ -50,7 +57,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
       setError(null);
       setLowConfidenceWarning(false);
 
-      const { result, lowConfidence, aiGenerated, aiDescription: desc } = await generateSpriteFromImageFromFile(file);
+      const {
+        result,
+        lowConfidence,
+        aiGenerated,
+        aiDescription: desc,
+      } = await generateSpriteFromImageFromFile(file);
 
       setSpriteData(result);
       setLowConfidenceWarning(Boolean(lowConfidence));
@@ -64,6 +76,7 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
 
   const handleConfirm = useCallback(() => {
     if (spriteData) {
+      removeLitebritePreview();
       onSpriteConfirm(spriteData);
     }
   }, [spriteData, onSpriteConfirm]);
@@ -77,12 +90,12 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
         const file = files[0];
-        if (file.type.startsWith('image/')) {
+        if (file.type.startsWith("image/")) {
           handleFileProcess(file);
         }
       }
     },
-    [processingState, handleFileProcess]
+    [processingState, handleFileProcess],
   );
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -99,24 +112,24 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
   const isLoading = processingState === ProcessingStatus.PROCESSING;
 
   return (
-    <div className="w-80 bg-neutral-900 border-r border-neutral-800 flex flex-col h-full overflow-y-auto">
-      <div className="p-4 border-b border-neutral-800">
-        <h2 className="text-lg font-bold text-white mb-2">Upload Sprite</h2>
-        <p className="text-xs text-neutral-400">
-          Drag and drop an image to convert it to a sprite
+    <div className="w-80 h-full bg-neutral-900 border-r border-neutral-800 flex flex-col min-h-0 overflow-hidden">
+      {/* Upload — compact, fixed height */}
+      <div className="flex-shrink-0 p-4 border-b border-neutral-800">
+        <h2 className="text-base font-bold text-white mb-6">Upload Sprite</h2>
+        <p className="text-sm text-neutral-400 leading-relaxed mb-3">
+          Drag and drop an image to convert it to a sprite.
         </p>
-      </div>
-
-      <div className="p-4">
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className={`border-2 border-dashed rounded-xl p-4 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center min-h-[120px] bg-neutral-800 ${
+          className={`border-2 border-dashed rounded-lg p-3 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center min-h-[100px] bg-neutral-800 ${
             isLoading
-              ? 'border-neutral-700 opacity-60 cursor-not-allowed'
-              : 'border-neutral-700 hover:border-emerald-500 hover:bg-neutral-700/80'
+              ? "border-neutral-700 opacity-60 cursor-not-allowed"
+              : "border-neutral-700 hover:border-emerald-500 hover:bg-neutral-700/80"
           }`}
-          onClick={() => !isLoading && document.getElementById('fileInput')?.click()}
+          onClick={() =>
+            !isLoading && document.getElementById("fileInput")?.click()
+          }
         >
           <input
             type="file"
@@ -126,66 +139,99 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
             onChange={handleChange}
             disabled={isLoading}
           />
-          <div className="text-3xl mb-2 grayscale opacity-80">👾</div>
-          <p className="text-white font-semibold text-sm">
-            {isLoading ? (geminiConfigured ? 'Analyzing with AI...' : 'Processing...') : 'Drop Image Here'}
+          <p className="text-white font-medium text-sm">
+            Drop Image or Click To Upload
           </p>
-          <p className="text-neutral-500 text-xs mt-1">
-            PNG, JPG (Max 2MB recommended)
-          </p>
+          <p className="text-neutral-500 text-xs mt-1.5">PNG, JPG</p>
         </div>
-
         {lowConfidenceWarning && (
-          <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700 text-amber-400 text-xs rounded text-center">
-            Low detection quality. For best results with Lite Brite photos, retake with better lighting or a clearer grid.
+          <div className="mt-3 p-2 bg-amber-900/20 border border-amber-700 text-amber-400 text-xs rounded text-center leading-relaxed">
+            Low detection quality. Retake with better lighting.
           </div>
         )}
         {error && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-800 text-red-400 text-xs rounded text-center">
-            Error: {error}
+          <div className="mt-3 p-2 bg-red-900/20 border border-red-800 text-red-400 text-xs rounded text-center leading-relaxed">
+            {error}
           </div>
         )}
       </div>
 
-      {spriteData && (
+      {/* Loading: Google-style three-dot bounce in center while generating */}
+      {isLoading && (
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 p-4 border-t border-neutral-800">
+          <div className="flex items-center justify-center gap-1.5" aria-hidden>
+            <span className="loading-dot" />
+            <span className="loading-dot" />
+            <span className="loading-dot" />
+          </div>
+          <p className="text-sm text-neutral-400">
+            {geminiConfigured
+              ? "Hmm, what could this be...?"
+              : "Hmm, let me see what you created..."}
+          </p>
+        </div>
+      )}
+
+      {/* Generated Sprite Build — description wraps; grids in lower half */}
+      {spriteData && !isLoading && (
         <>
-          <div className="p-4 border-t border-neutral-800">
-            <h3 className="text-sm font-bold text-white mb-3">Generated Sprite Build</h3>
-            {aiDescription && (
-              <p className="text-xs text-emerald-400/90 mb-2 break-words whitespace-normal">
-                ✨ {aiDescription}
-              </p>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <SpritePreview
-                pixels={spriteData.matrix.front}
-                label="Front"
-              />
-              <SpritePreview
-                pixels={spriteData.matrix.back}
-                label="Back"
-              />
-              <SpritePreview
-                pixels={spriteData.matrix.left}
-                label="Left"
-              />
-              <SpritePreview
-                pixels={spriteData.matrix.right}
-                label="Right"
-              />
+          <div className="flex-1 min-h-0 flex flex-col p-4 border-t border-neutral-800 overflow-hidden">
+            {/* Upper: title + description, wraps fully, no trailing clamp */}
+            <div className="flex-shrink-0">
+              <h3 className="text-base font-bold text-white mb-6">
+                Generated Sprite Build
+              </h3>
+              {aiDescription && (
+                <div className="text-sm break-words leading-relaxed">
+                  <span className="text-neutral-400">
+                    We think your creation is{" "}
+                  </span>
+                  <span className="text-emerald-400/90 font-bold">
+                    {aiDescription}.
+                  </span>
+                  <span className="block text-neutral-400 mt-3">
+                    Not quite right? Try uploading another photo!
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* Lower half: f, b, l, r view grids */}
+            <div className="flex-1 min-h-[50%] flex flex-col min-h-0 mt-1">
+              <div className="grid grid-cols-2 gap-3 flex-1 min-h-0 content-end">
+                <SpritePreview
+                  pixels={spriteData.matrix.front}
+                  label="Front"
+                  scale={3}
+                />
+                <SpritePreview
+                  pixels={spriteData.matrix.back}
+                  label="Back"
+                  scale={3}
+                />
+                <SpritePreview
+                  pixels={spriteData.matrix.left}
+                  label="Left"
+                  scale={3}
+                />
+                <SpritePreview
+                  pixels={spriteData.matrix.right}
+                  label="Right"
+                  scale={3}
+                />
+              </div>
             </div>
           </div>
-          <div className="p-4 border-t border-neutral-800 mt-auto">
+          <div className="flex-shrink-0 p-4 border-t border-neutral-800">
             <button
               onClick={handleConfirm}
               disabled={isSpawning}
-              className={`w-full py-3 px-4 rounded-lg font-semibold text-sm transition-all duration-200 ${
+              className={`w-full py-2.5 px-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
                 isSpawning
-                  ? 'bg-neutral-700 text-neutral-500 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/50'
+                  ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/50"
               }`}
             >
-              {isSpawning ? 'Spawning...' : 'Add to Party'}
+              {isSpawning ? "Spawning..." : "Add to Party"}
             </button>
           </div>
         </>
@@ -195,4 +241,3 @@ const SidePanel: React.FC<SidePanelProps> = ({ onSpriteConfirm, isSpawning }) =>
 };
 
 export default SidePanel;
-
