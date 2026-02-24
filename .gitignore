@@ -39,3 +39,7 @@ Thumbs.db
 
 .vercel
 .env*.local
+
+# Local-only readme (run instructions)
+README.local.md
+api-server.cjs

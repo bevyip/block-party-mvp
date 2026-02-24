@@ -18,6 +18,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
   );
   const [spriteData, setSpriteData] = useState<SpriteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
   const [lowConfidenceWarning, setLowConfidenceWarning] = useState(false);
   const [aiDescription, setAiDescription] = useState<string | null>(null);
   const prevSpawningRef = React.useRef(false);
@@ -27,6 +28,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
     setProcessingState(ProcessingStatus.IDLE);
     setSpriteData(null);
     setError(null);
+    setBuildError(null);
     setLowConfidenceWarning(false);
     setAiDescription(null);
     // Reset file input
@@ -49,21 +51,23 @@ const SidePanel: React.FC<SidePanelProps> = ({
     try {
       setProcessingState(ProcessingStatus.PROCESSING);
       setError(null);
+      setBuildError(null);
       setLowConfidenceWarning(false);
 
-      const {
-        result,
-        lowConfidence,
-        aiGenerated,
-        aiDescription: desc,
-      } = await generateSpriteFromImageFromFile(file);
+      const out = await generateSpriteFromImageFromFile(file);
 
-      setSpriteData(result);
-      setLowConfidenceWarning(Boolean(lowConfidence));
-      setAiDescription(aiGenerated && desc ? desc : null);
-      setProcessingState(ProcessingStatus.COMPLETE);
-    } catch (err: any) {
-      setError(err.message || "An unknown error occurred");
+      if (!out.ok) {
+        setSpriteData(null);
+        setBuildError((out as { ok: false; error: string }).error);
+        setProcessingState(ProcessingStatus.COMPLETE);
+      } else {
+        setSpriteData(out.result);
+        setLowConfidenceWarning(Boolean(out.lowConfidence));
+        setAiDescription(out.aiGenerated && out.aiDescription ? out.aiDescription : null);
+        setProcessingState(ProcessingStatus.COMPLETE);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred");
       setProcessingState(ProcessingStatus.ERROR);
     }
   }, []);
@@ -164,68 +168,78 @@ const SidePanel: React.FC<SidePanelProps> = ({
         </div>
       )}
 
-      {/* Generated Sprite Build — description wraps; grids in lower half */}
-      {spriteData && !isLoading && (
+      {/* Generated Sprite Build — description wraps; grids in lower half; or API error */}
+      {(spriteData || buildError) && !isLoading && (
         <>
           <div className="flex-1 min-h-0 flex flex-col p-4 border-t border-neutral-800 overflow-hidden">
-            {/* Upper: title + description, wraps fully, no trailing clamp */}
             <div className="flex-shrink-0">
               <h3 className="text-base font-bold text-white mb-6">
                 Generated Sprite Build
               </h3>
-              {aiDescription && (
-                <div className="text-sm break-words leading-relaxed">
-                  <span className="text-neutral-400">
-                    We think your creation is{" "}
-                  </span>
-                  <span className="text-emerald-400/90 font-bold">
-                    {aiDescription}.
-                  </span>
-                  <span className="block text-neutral-400 mt-3">
-                    Not quite right? Try uploading another photo!
-                  </span>
+              {buildError ? (
+                <div className="p-3 bg-red-900/20 border border-red-800 text-red-400 text-sm rounded-lg leading-relaxed">
+                  {buildError}
                 </div>
+              ) : (
+                <>
+                  {aiDescription && (
+                    <div className="text-sm break-words leading-relaxed">
+                      <span className="text-neutral-400">
+                        We think your creation is{" "}
+                      </span>
+                      <span className="text-emerald-400/90 font-bold">
+                        {aiDescription}.
+                      </span>
+                      <span className="block text-neutral-400 mt-3">
+                        Not quite right? Try uploading another photo!
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
-            {/* Lower half: f, b, l, r view grids */}
-            <div className="flex-1 min-h-[50%] flex flex-col min-h-0 mt-1">
-              <div className="grid grid-cols-2 gap-3 flex-1 min-h-0 content-end">
-                <SpritePreview
-                  pixels={spriteData.matrix.front}
-                  label="Front"
-                  scale={3}
-                />
-                <SpritePreview
-                  pixels={spriteData.matrix.back}
-                  label="Back"
-                  scale={3}
-                />
-                <SpritePreview
-                  pixels={spriteData.matrix.left}
-                  label="Left"
-                  scale={3}
-                />
-                <SpritePreview
-                  pixels={spriteData.matrix.right}
-                  label="Right"
-                  scale={3}
-                />
+            {spriteData && !buildError && (
+              <div className="flex-1 min-h-[50%] flex flex-col min-h-0 mt-1">
+                <div className="grid grid-cols-2 gap-3 flex-1 min-h-0 content-end">
+                  <SpritePreview
+                    pixels={spriteData.matrix.front}
+                    label="Front"
+                    scale={3}
+                  />
+                  <SpritePreview
+                    pixels={spriteData.matrix.back}
+                    label="Back"
+                    scale={3}
+                  />
+                  <SpritePreview
+                    pixels={spriteData.matrix.left}
+                    label="Left"
+                    scale={3}
+                  />
+                  <SpritePreview
+                    pixels={spriteData.matrix.right}
+                    label="Right"
+                    scale={3}
+                  />
+                </div>
               </div>
+            )}
+          </div>
+          {spriteData && (
+            <div className="flex-shrink-0 p-4 border-t border-neutral-800">
+              <button
+                onClick={handleConfirm}
+                disabled={isSpawning}
+                className={`w-full py-2.5 px-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                  isSpawning
+                    ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/50"
+                }`}
+              >
+                {isSpawning ? "Spawning..." : "Add to Party"}
+              </button>
             </div>
-          </div>
-          <div className="flex-shrink-0 p-4 border-t border-neutral-800">
-            <button
-              onClick={handleConfirm}
-              disabled={isSpawning}
-              className={`w-full py-2.5 px-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                isSpawning
-                  ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/50"
-              }`}
-            >
-              {isSpawning ? "Spawning..." : "Add to Party"}
-            </button>
-          </div>
+          )}
         </>
       )}
     </div>

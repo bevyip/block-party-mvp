@@ -9,8 +9,7 @@ const post = async (body: object): Promise<unknown> => {
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${err}`);
+    throw new Error(`Gemini API error ${res.status}.`);
   }
 
   const json = (await res.json()) as {

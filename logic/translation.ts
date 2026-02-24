@@ -2,8 +2,8 @@
 // translation.ts
 // Generates a SpriteResult from an uploaded image file.
 //
-// Tries the Lite-Brite pipeline first (Gemini via /api/gemini proxy).
-// Falls back to the canvas pipeline on error or for non-Lite-Brite images.
+// Uses the Lite-Brite pipeline (Gemini via /api/gemini proxy).
+// On API error, returns an error for the UI to show; no canvas fallback.
 // ─────────────────────────────────────────────────────────
 
 import { SpriteResult, SpriteMatrix } from "../types";
@@ -292,12 +292,15 @@ const liteBriteResultToSpriteResult = (
 
 // ── Public API ─────────────────────────────────────────────
 
-export interface GenerateSpriteFromFileResult {
-  result: SpriteResult;
-  lowConfidence?: boolean;
-  aiGenerated?: boolean;
-  aiDescription?: string;
-}
+export type GenerateSpriteFromFileResult =
+  | {
+      ok: true;
+      result: SpriteResult;
+      lowConfidence?: boolean;
+      aiGenerated?: boolean;
+      aiDescription?: string;
+    }
+  | { ok: false; error: string };
 
 /** Normalize AI description: start lowercase. */
 const normalizeAiDescription = (s: string): string => {
@@ -310,8 +313,8 @@ const normalizeAiDescription = (s: string): string => {
 
 /**
  * Main entry point.
- * Tries the Lite-Brite pipeline first (board crop → Gemini via /api/gemini → sprite).
- * Falls back to the canvas pipeline on error.
+ * Uses the Lite-Brite pipeline (board crop → Gemini via /api/gemini → sprite).
+ * On API or pipeline error, returns { ok: false, error } for the UI to show.
  */
 export const generateSpriteFromImageFromFile = async (
   file: File
@@ -328,23 +331,14 @@ export const generateSpriteFromImageFromFile = async (
     });
 
     return {
+      ok: true,
       result,
       aiGenerated: true,
       aiDescription: normalizeAiDescription(liteBriteResult.subject),
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(
-      "[Sprite] Lite-Brite pipeline failed, falling back to canvas pipeline:",
-      msg
-    );
+    console.warn("[Sprite] Lite-Brite pipeline failed:", msg);
+    return { ok: false, error: msg };
   }
-
-  // Canvas fallback
-  console.log("[Sprite] Using canvas pipeline...");
-  const base64 = await fileToBase64(file);
-  const { width, height } = await getImageDimensions(file);
-  const result = await generateSpriteFromImage(base64, width, height);
-  console.log("[Sprite] Canvas pipeline complete", { dimensions: result.dimensions });
-  return { result };
 };
