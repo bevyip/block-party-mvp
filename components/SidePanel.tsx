@@ -1,8 +1,27 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { SpriteResult, ProcessingStatus } from "../types";
 import { generateSpriteFromImageFromFile } from "../logic/translation.js";
 import { removeLitebritePreview } from "../utils/litebrite/boardCropper";
 import SpritePreview from "./SpritePreview";
+
+const SHORT_VIEWPORT_MAX_HEIGHT = 900;
+
+function useShortViewport(): boolean {
+  const [short, setShort] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia(`(max-height: ${SHORT_VIEWPORT_MAX_HEIGHT}px)`).matches,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(
+      `(max-height: ${SHORT_VIEWPORT_MAX_HEIGHT}px)`,
+    );
+    const handler = () => setShort(mql.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+  return short;
+}
 
 interface SidePanelProps {
   onSpriteConfirm: (sprite: SpriteResult) => void;
@@ -108,19 +127,22 @@ const SidePanel: React.FC<SidePanelProps> = ({
   };
 
   const isLoading = processingState === ProcessingStatus.PROCESSING;
+  const isShortViewport = useShortViewport();
 
   return (
     <div className="w-80 h-full bg-neutral-900 border-r border-neutral-800 flex flex-col min-h-0 overflow-hidden">
-      {/* Upload — compact, fixed height */}
-      <div className="flex-shrink-0 p-4 border-b border-neutral-800">
-        <h2 className="text-base font-bold text-white mb-6">Upload Sprite</h2>
-        <p className="text-sm text-neutral-400 leading-relaxed mb-3">
+      {/* Upload — compact, fixed height; slightly tighter on short viewports */}
+      <div className="flex-shrink-0 p-4 short:p-3.5 border-b border-neutral-800">
+        <h2 className="text-base short:text-sm font-bold text-white mb-6 short:mb-4">
+          Upload Sprite
+        </h2>
+        <p className="text-sm short:text-xs text-neutral-400 leading-relaxed mb-3 short:mb-2.5">
           Drag and drop an image to convert it to a sprite.
         </p>
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
-          className={`border-2 border-dashed rounded-lg p-3 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center min-h-[100px] bg-neutral-800 ${
+          className={`border-2 border-dashed rounded-lg p-3 short:p-2.5 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center min-h-[100px] short:min-h-[84px] bg-neutral-800 ${
             isLoading
               ? "border-neutral-700 opacity-60 cursor-not-allowed"
               : "border-neutral-700 hover:border-emerald-500 hover:bg-neutral-700/80"
@@ -137,18 +159,20 @@ const SidePanel: React.FC<SidePanelProps> = ({
             onChange={handleChange}
             disabled={isLoading}
           />
-          <p className="text-white font-medium text-sm">
+          <p className="text-white font-medium text-sm short:text-xs">
             Drop Image or Click To Upload
           </p>
-          <p className="text-neutral-500 text-xs mt-1.5">PNG, JPG</p>
+          <p className="text-neutral-500 text-xs short:text-[10px] mt-1.5 short:mt-1.5">
+            PNG, JPG
+          </p>
         </div>
         {lowConfidenceWarning && (
-          <div className="mt-3 p-2 bg-amber-900/20 border border-amber-700 text-amber-400 text-xs rounded text-center leading-relaxed">
+          <div className="mt-3 short:mt-2.5 p-2 short:p-2 bg-amber-900/20 border border-amber-700 text-amber-400 text-xs rounded text-center leading-relaxed short:leading-snug">
             Low detection quality. Retake with better lighting.
           </div>
         )}
         {error && (
-          <div className="mt-3 p-2 bg-red-900/20 border border-red-800 text-red-400 text-xs rounded text-center leading-relaxed">
+          <div className="mt-3 short:mt-2.5 p-2 short:p-2 bg-red-900/20 border border-red-800 text-red-400 text-xs rounded text-center leading-relaxed short:leading-snug">
             {error}
           </div>
         )}
@@ -156,41 +180,41 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
       {/* Loading: Google-style three-dot bounce in center while generating */}
       {isLoading && (
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 p-4 border-t border-neutral-800">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 short:gap-3 p-4 short:p-3.5 border-t border-neutral-800">
           <div className="flex items-center justify-center gap-1.5" aria-hidden>
             <span className="loading-dot" />
             <span className="loading-dot" />
             <span className="loading-dot" />
           </div>
-          <p className="text-sm text-neutral-400">
+          <p className="text-sm short:text-xs text-neutral-400">
             Hmm, what could this be...?
           </p>
         </div>
       )}
 
-      {/* Generated Sprite Build — description wraps; grids in lower half; or API error */}
+      {/* Generated Sprite Build — scrollable on short viewports to avoid overlap */}
       {(spriteData || buildError) && !isLoading && (
         <>
-          <div className="flex-1 min-h-0 flex flex-col p-4 border-t border-neutral-800 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col p-4 short:p-3.5 border-t border-neutral-800 overflow-y-auto overflow-x-hidden">
             <div className="flex-shrink-0">
-              <h3 className="text-base font-bold text-white mb-6">
+              <h3 className="text-base short:text-sm font-bold text-white mb-6 short:mb-4">
                 Generated Sprite Build
               </h3>
               {buildError ? (
-                <div className="p-3 bg-red-900/20 border border-red-800 text-red-400 text-sm rounded-lg leading-relaxed">
+                <div className="p-3 short:p-2.5 bg-red-900/20 border border-red-800 text-red-400 text-sm short:text-xs rounded-lg leading-relaxed">
                   {buildError}
                 </div>
               ) : (
                 <>
                   {aiDescription && (
-                    <div className="text-sm break-words leading-relaxed">
+                    <div className="text-sm short:text-xs break-words leading-relaxed short:leading-snug">
                       <span className="text-neutral-400">
                         We think your creation is{" "}
                       </span>
                       <span className="text-emerald-400/90 font-bold">
                         {aiDescription}.
                       </span>
-                      <span className="block text-neutral-400 mt-3">
+                      <span className="block text-neutral-400 mt-3 short:mt-2.5">
                         Not quite right? Try uploading another photo!
                       </span>
                     </div>
@@ -199,38 +223,42 @@ const SidePanel: React.FC<SidePanelProps> = ({
               )}
             </div>
             {spriteData && !buildError && (
-              <div className="flex-1 min-h-[50%] flex flex-col min-h-0 mt-1">
-                <div className="grid grid-cols-2 gap-3 flex-1 min-h-0 content-end">
+              <div className="flex-1 min-h-0 flex flex-col mt-1">
+                <div className="grid grid-cols-2 gap-3 short:gap-2.5 flex-1 min-h-0 content-end">
                   <SpritePreview
                     pixels={spriteData.matrix.front}
                     label="Front"
                     scale={3}
+                    compact={isShortViewport}
                   />
                   <SpritePreview
                     pixels={spriteData.matrix.back}
                     label="Back"
                     scale={3}
+                    compact={isShortViewport}
                   />
                   <SpritePreview
                     pixels={spriteData.matrix.left}
                     label="Left"
                     scale={3}
+                    compact={isShortViewport}
                   />
                   <SpritePreview
                     pixels={spriteData.matrix.right}
                     label="Right"
                     scale={3}
+                    compact={isShortViewport}
                   />
                 </div>
               </div>
             )}
           </div>
           {spriteData && (
-            <div className="flex-shrink-0 p-4 border-t border-neutral-800">
+            <div className="flex-shrink-0 p-4 short:p-3.5 border-t border-neutral-800">
               <button
                 onClick={handleConfirm}
                 disabled={isSpawning}
-                className={`w-full py-2.5 px-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                className={`w-full py-2.5 short:py-2.5 px-3 rounded-lg font-semibold text-sm short:text-xs transition-all duration-200 ${
                   isSpawning
                     ? "bg-neutral-700 text-neutral-500 cursor-not-allowed"
                     : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-500/50"

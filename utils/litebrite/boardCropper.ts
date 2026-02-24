@@ -242,8 +242,11 @@ export const cropBoard = async (file: File): Promise<string> => {
     style.id = LITEBRITE_PREVIEW_STYLE_ID;
     style.textContent = `
       .litebrite-preview { position: fixed; top: 10px; right: 10px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+      .litebrite-preview__btns { display: flex; flex-direction: row; gap: 6px; }
       .litebrite-preview__btn { padding: 6px 10px; font-size: 12px; background: #374151; color: #fff; border: 1px solid #4b5563; border-radius: 6px; cursor: pointer; font-family: inherit; }
       .litebrite-preview__btn:hover { background: #4b5563; }
+      .litebrite-preview__btn--reset { background: #b91c1c; border-color: #991b1b; }
+      .litebrite-preview__btn--reset:hover { background: #dc2626; }
       .litebrite-preview__img { max-width: 300px; border: 3px solid #ef4444; border-radius: 4px; display: none; }
       .litebrite-preview--open .litebrite-preview__img { display: block; }
     `;
@@ -251,37 +254,21 @@ export const cropBoard = async (file: File): Promise<string> => {
   }
 
   if (!container) {
-    container = document.createElement("div");
-    container.id = LITEBRITE_PREVIEW_ID;
-    container.className = "litebrite-preview";
-
-    const toggleBtn = document.createElement("button");
-    toggleBtn.type = "button";
-    toggleBtn.className = "litebrite-preview__btn";
-    toggleBtn.textContent = "Preview";
-    toggleBtn.setAttribute("aria-label", "Toggle crop preview");
-
-    const previewImgEl = document.createElement("img");
-    previewImgEl.className = "litebrite-preview__img";
-    previewImgEl.alt = "Crop sent to Gemini";
-
-    toggleBtn.addEventListener("click", () => {
-      container?.classList.toggle("litebrite-preview--open");
-      toggleBtn.textContent = container?.classList.contains("litebrite-preview--open") ? "Close" : "Preview";
-    });
-
-    container.appendChild(toggleBtn);
-    container.appendChild(previewImgEl);
+    container = createPreviewContainer();
     document.body.appendChild(container);
   }
 
   const previewImg = container.querySelector(".litebrite-preview__img") as HTMLImageElement;
   if (previewImg) {
     previewImg.src = dataUrl;
+    previewImg.style.display = "";
   }
   container.classList.remove("litebrite-preview--open");
-  const btn = container.querySelector(".litebrite-preview__btn");
-  if (btn) btn.textContent = "Preview";
+  const toggleBtn = container.querySelector(".litebrite-preview__toggle") as HTMLElement | null;
+  if (toggleBtn) {
+    toggleBtn.style.display = "";
+    (toggleBtn as HTMLButtonElement).textContent = "Preview";
+  }
 
   return dataUrl.split(",")[1];
 };
@@ -289,10 +276,85 @@ export const cropBoard = async (file: File): Promise<string> => {
 const LITEBRITE_PREVIEW_ID = "litebrite-preview-container";
 const LITEBRITE_PREVIEW_STYLE_ID = "litebrite-preview-styles";
 
-/** Remove the floating crop preview from the DOM (e.g. after user clicks Add to Party). */
+const CREATIONS_STORAGE_KEY = "block-party-creations";
+
+function createPreviewContainer(): HTMLDivElement {
+  const container = document.createElement("div");
+  container.id = LITEBRITE_PREVIEW_ID;
+  container.className = "litebrite-preview";
+
+  const btnWrapper = document.createElement("div");
+  btnWrapper.className = "litebrite-preview__btns";
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "litebrite-preview__btn litebrite-preview__btn--reset";
+  clearBtn.textContent = "Reset Map";
+  clearBtn.setAttribute("aria-label", "Reset map: clear saved creations from local storage");
+  clearBtn.addEventListener("click", () => {
+    try {
+      localStorage.removeItem(CREATIONS_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    // Defer reload so the click completes and the browser reliably refreshes
+    setTimeout(() => {
+      window.location.href = window.location.href;
+    }, 0);
+  });
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "litebrite-preview__btn litebrite-preview__toggle";
+  toggleBtn.textContent = "Preview";
+  toggleBtn.setAttribute("aria-label", "Toggle crop preview");
+  toggleBtn.addEventListener("click", () => {
+    container.classList.toggle("litebrite-preview--open");
+    toggleBtn.textContent = container.classList.contains("litebrite-preview--open") ? "Close" : "Preview";
+  });
+
+  const previewImgEl = document.createElement("img");
+  previewImgEl.className = "litebrite-preview__img";
+  previewImgEl.alt = "Crop sent to Gemini";
+
+  btnWrapper.appendChild(clearBtn);
+  btnWrapper.appendChild(toggleBtn);
+  container.appendChild(btnWrapper);
+  container.appendChild(previewImgEl);
+  return container;
+}
+
+/** Ensure the top-right preview toolbar (Preview + Clear saved) exists. Call on app load so the Clear button is visible. */
+export function ensurePreviewContainerExists(): void {
+  if (document.getElementById(LITEBRITE_PREVIEW_ID)) return;
+  if (!document.getElementById(LITEBRITE_PREVIEW_STYLE_ID)) {
+    const style = document.createElement("style");
+    style.id = LITEBRITE_PREVIEW_STYLE_ID;
+    style.textContent = `
+      .litebrite-preview { position: fixed; top: 10px; right: 10px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+      .litebrite-preview__btns { display: flex; flex-direction: row; gap: 6px; }
+      .litebrite-preview__btn { padding: 6px 10px; font-size: 12px; background: #374151; color: #fff; border: 1px solid #4b5563; border-radius: 6px; cursor: pointer; font-family: inherit; }
+      .litebrite-preview__btn:hover { background: #4b5563; }
+      .litebrite-preview__btn--reset { background: #b91c1c; border-color: #991b1b; }
+      .litebrite-preview__btn--reset:hover { background: #dc2626; }
+      .litebrite-preview__img { max-width: 300px; border: 3px solid #ef4444; border-radius: 4px; display: none; }
+      .litebrite-preview--open .litebrite-preview__img { display: block; }
+    `;
+    document.head.appendChild(style);
+  }
+  document.body.appendChild(createPreviewContainer());
+}
+
+/** Hide only the crop preview image and Preview button (e.g. after user clicks Add to Party). Reset Map button stays visible. */
 export const removeLitebritePreview = (): void => {
   const container = document.getElementById(LITEBRITE_PREVIEW_ID);
-  if (container) container.remove();
-  const styleEl = document.getElementById(LITEBRITE_PREVIEW_STYLE_ID);
-  if (styleEl) styleEl.remove();
+  if (!container) return;
+  container.classList.remove("litebrite-preview--open");
+  const toggleBtn = container.querySelector(".litebrite-preview__toggle") as HTMLElement | null;
+  if (toggleBtn) toggleBtn.style.display = "none";
+  const previewImg = container.querySelector(".litebrite-preview__img") as HTMLImageElement | null;
+  if (previewImg) {
+    previewImg.src = "";
+    previewImg.style.display = "none";
+  }
 };

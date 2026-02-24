@@ -26,6 +26,8 @@ import {
   Rect,
   Fish,
   SpriteResult,
+  CREATIONS_STORAGE_KEY,
+  MAX_SAVED_CREATIONS,
 } from "../types";
 import { playBlip, playChirp, playSpawn } from "../utils/audio.js";
 
@@ -213,133 +215,195 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
     const bridgeCurveRef = useRef<BridgeCurve | null>(null);
     const nextSpriteIdRef = useRef<number>(SPRITE_COUNT);
 
-    // Expose method to add custom sprites
+    // Internal: spawn one custom sprite (used by ref and by saved-creations loader)
+    const spawnCustomSpriteInternal = useCallback((spriteResult: SpriteResult) => {
+      const state = gameStateRef.current;
+      const bridgeCenter = bridgeCenterRef.current;
+      if (!bridgeCenter) return;
+
+      const spriteHeight = spriteResult.dimensions.height * SCALE;
+      const spriteWidth = spriteResult.dimensions.width * SCALE;
+      const halfH = (spriteResult.dimensions.height * SCALE) / 2;
+      const moveRight = Math.random() >= 0.5;
+      const MOVEMENT_SPEED = 0.25 * SCALE;
+      const spawnDelay = 60 * (1 + Math.random());
+
+      const customSprite: Sprite = {
+        id: nextSpriteIdRef.current++,
+        x: bridgeCenter.x - spriteWidth / 2,
+        y: bridgeCenter.y - spriteHeight / 2,
+        vx: 0,
+        vy: 0,
+        color: "#888",
+        hairColor: "#888",
+        pantsColor: "#888",
+        skinTone: "#888",
+        interactionCooldown: Math.random() * 200,
+        facing: moveRight ? "right" : "left",
+        bobOffset: Math.random() * Math.PI * 2,
+        state: "idle",
+        stateTimer: spawnDelay,
+        isCustom: true,
+        customSprite: {
+          matrix: spriteResult.matrix,
+          dimensions: spriteResult.dimensions,
+        },
+      };
+      (customSprite as any)._spawnDirection = moveRight ? "right" : "left";
+      (customSprite as any)._spawnSpeed = MOVEMENT_SPEED;
+
+      const isPositionValid = (spriteX: number, spriteY: number): boolean => {
+        const box = {
+          x: spriteX,
+          y: spriteY + halfH,
+          width: spriteWidth,
+          height: halfH,
+        };
+        const onBridge = bridgeSegmentsRef.current.some((b) =>
+          AABB(box, b.bounds),
+        );
+        const obstacleHit = state.obstacles.some((o) => {
+          if (
+            o.type === EntityType.FLOWER ||
+            o.type === EntityType.GRASS_PATCH ||
+            o.type === EntityType.BRIDGE
+          )
+            return false;
+          if (onBridge && o.type === EntityType.RIVER_SEGMENT) return false;
+          return AABB(box, o.bounds);
+        });
+        if (obstacleHit) return false;
+        const newCenter = {
+          x: spriteX + spriteWidth / 2,
+          y: spriteY + spriteHeight / 2,
+        };
+        const tooCloseToOther = state.sprites.some((other) => {
+          const oc = getSpriteCenter(other);
+          return (
+            distSq(newCenter.x, newCenter.y, oc.x, oc.y) <
+            SPAWN_CLEARANCE * SPAWN_CLEARANCE
+          );
+        });
+        return !tooCloseToOther;
+      };
+
+      const baseX = bridgeCenter.x - spriteWidth / 2;
+      const baseY = bridgeCenter.y - spriteHeight / 2;
+      const xOffsets = [
+        0,
+        -s(80),
+        s(80),
+        -s(60),
+        s(60),
+        -s(40),
+        s(40),
+        -s(20),
+        s(20),
+      ];
+      let placed = false;
+      for (const dx of xOffsets) {
+        const tryX = baseX + dx;
+        if (isPositionValid(tryX, baseY)) {
+          customSprite.x = tryX;
+          customSprite.y = baseY;
+          state.sprites.push(customSprite);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        state.sprites.push(customSprite);
+      }
+
+      playSpawn();
+
+      const landingY = customSprite.y;
+      const startY = -spriteHeight;
+      customSprite.y = startY;
+      (customSprite as any)._spawnDrop = {
+        startY,
+        endY: landingY,
+        startTime: performance.now(),
+        durationMs: 1000,
+      };
+    }, []);
+
+    // Spawn a saved creation at a random valid position, dropping in from above
+    const spawnCustomSpriteAtRandomPosition = useCallback((spriteResult: SpriteResult) => {
+      const state = gameStateRef.current;
+      const spriteHeight = spriteResult.dimensions.height * SCALE;
+      const spriteWidth = spriteResult.dimensions.width * SCALE;
+      let sx = 0;
+      let sy = 0;
+      let validPos = false;
+      let attempts = 0;
+      while (!validPos && attempts < 100) {
+        sx = Math.random() * (GAME_WIDTH - spriteWidth - s(20)) + s(10);
+        sy = Math.random() * (GAME_HEIGHT - spriteHeight - s(20)) + s(10);
+        const spriteBox = {
+          x: sx,
+          y: sy + spriteHeight / 2,
+          width: spriteWidth,
+          height: spriteHeight / 2,
+        };
+        const collision = state.obstacles.some((o) => {
+          if (
+            o.type === EntityType.FLOWER ||
+            o.type === EntityType.GRASS_PATCH ||
+            o.type === EntityType.BRIDGE
+          )
+            return false;
+          return AABB(spriteBox, o.bounds);
+        });
+        if (!collision) validPos = true;
+        attempts++;
+      }
+      if (!validPos) {
+        sx = Math.random() * (GAME_WIDTH - spriteWidth);
+        sy = Math.random() * (GAME_HEIGHT - spriteHeight);
+      }
+      const landingY = sy;
+      const startY = -spriteHeight;
+      const customSprite: Sprite = {
+        id: nextSpriteIdRef.current++,
+        x: sx,
+        y: startY,
+        vx: 0,
+        vy: 0,
+        color: "#888",
+        hairColor: "#888",
+        pantsColor: "#888",
+        skinTone: "#888",
+        interactionCooldown: Math.random() * 200,
+        facing: "front",
+        bobOffset: Math.random() * Math.PI * 2,
+        state: "idle",
+        stateTimer: 60 * (3 + Math.random() * 5),
+        isCustom: true,
+        customSprite: {
+          matrix: spriteResult.matrix,
+          dimensions: spriteResult.dimensions,
+        },
+      };
+      (customSprite as any)._spawnDrop = {
+        startY,
+        endY: landingY,
+        startTime: performance.now(),
+        durationMs: 1000,
+      };
+      state.sprites.push(customSprite);
+      playSpawn();
+    }, []);
+
     useImperativeHandle(ref, () => ({
       addCustomSprite: async (spriteResult: SpriteResult) => {
-        // Small delay to show spinner
         await new Promise((resolve) => setTimeout(resolve, 500));
-
-        const state = gameStateRef.current;
-
-        // Find bridge center for spawning
-        const bridgeCenter = bridgeCenterRef.current;
-        if (!bridgeCenter) {
-          return;
-        }
-
-        const spriteHeight = spriteResult.dimensions.height * SCALE;
-        const spriteWidth = spriteResult.dimensions.width * SCALE;
-        const halfH = (spriteResult.dimensions.height * SCALE) / 2;
-
-        // Randomly choose left or right direction (50/50 chance)
-        const moveRight = Math.random() >= 0.5;
-        const MOVEMENT_SPEED = 0.25 * SCALE;
-        const spawnDelay = 60 * (1 + Math.random());
-
-        const customSprite: Sprite = {
-          id: nextSpriteIdRef.current++,
-          x: bridgeCenter.x - spriteWidth / 2,
-          y: bridgeCenter.y - spriteHeight / 2,
-          vx: 0,
-          vy: 0,
-          color: "#888",
-          hairColor: "#888",
-          pantsColor: "#888",
-          skinTone: "#888",
-          interactionCooldown: Math.random() * 200,
-          facing: moveRight ? "right" : "left",
-          bobOffset: Math.random() * Math.PI * 2,
-          state: "idle",
-          stateTimer: spawnDelay,
-          isCustom: true,
-          customSprite: {
-            matrix: spriteResult.matrix,
-            dimensions: spriteResult.dimensions,
-          },
-        };
-        (customSprite as any)._spawnDirection = moveRight ? "right" : "left";
-        (customSprite as any)._spawnSpeed = MOVEMENT_SPEED;
-
-        const isPositionValid = (spriteX: number, spriteY: number): boolean => {
-          const box = {
-            x: spriteX,
-            y: spriteY + halfH,
-            width: spriteWidth,
-            height: halfH,
-          };
-          const onBridge = bridgeSegmentsRef.current.some((b) =>
-            AABB(box, b.bounds),
-          );
-          const obstacleHit = state.obstacles.some((o) => {
-            if (
-              o.type === EntityType.FLOWER ||
-              o.type === EntityType.GRASS_PATCH ||
-              o.type === EntityType.BRIDGE
-            )
-              return false;
-            if (onBridge && o.type === EntityType.RIVER_SEGMENT) return false;
-            return AABB(box, o.bounds);
-          });
-          if (obstacleHit) return false;
-          const newCenter = {
-            x: spriteX + spriteWidth / 2,
-            y: spriteY + spriteHeight / 2,
-          };
-          const tooCloseToOther = state.sprites.some((other) => {
-            const oc = getSpriteCenter(other);
-            return (
-              distSq(newCenter.x, newCenter.y, oc.x, oc.y) <
-              SPAWN_CLEARANCE * SPAWN_CLEARANCE
-            );
-          });
-          return !tooCloseToOther;
-        };
-
-        const baseX = bridgeCenter.x - spriteWidth / 2;
-        const baseY = bridgeCenter.y - spriteHeight / 2;
-        const xOffsets = [
-          0,
-          -s(80),
-          s(80),
-          -s(60),
-          s(60),
-          -s(40),
-          s(40),
-          -s(20),
-          s(20),
-        ];
-        let placed = false;
-        for (const dx of xOffsets) {
-          const tryX = baseX + dx;
-          if (isPositionValid(tryX, baseY)) {
-            customSprite.x = tryX;
-            customSprite.y = baseY;
-            state.sprites.push(customSprite);
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) {
-          state.sprites.push(customSprite);
-        }
-
-        playSpawn();
-
-        // Drop-from-sky: start above map, animate down to landing position
-        const landingY = customSprite.y;
-        const startY = -spriteHeight;
-        customSprite.y = startY;
-        (customSprite as any)._spawnDrop = {
-          startY,
-          endY: landingY,
-          startTime: performance.now(),
-          durationMs: 1000,
-        };
-
-        // Small delay before hiding spinner
+        spawnCustomSpriteInternal(spriteResult);
         await new Promise((resolve) => setTimeout(resolve, 300));
       },
-    }));
+    }), [spawnCustomSpriteInternal]);
+
+    const savedSpawnTimeoutsRef = useRef<number[]>([]);
 
     // Initialization
     const initGame = useCallback(() => {
@@ -692,7 +756,6 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
       }
 
       gameStateRef.current = { sprites, obstacles, fish };
-      setIsPlaying(true);
     }, []);
 
     // Update Loop
@@ -1247,9 +1310,42 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
 
     useEffect(() => {
       initGame();
+      // Read saved creations and schedule spawns before showing the map so nothing blocks after paint
+      savedSpawnTimeoutsRef.current = [];
+      try {
+        const raw = localStorage.getItem(CREATIONS_STORAGE_KEY);
+        if (raw) {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = null;
+          }
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Cap how many we load to avoid OOM when storage was from before the cap
+            const list = parsed.slice(-MAX_SAVED_CREATIONS) as SpriteResult[];
+            const baseDelayMs = 600; // wait a little after map appears, then float in
+            list.forEach((sr: SpriteResult, i: number) => {
+              const delay = baseDelayMs + i * 400 + Math.random() * 300;
+              const id = window.setTimeout(
+                () => spawnCustomSpriteAtRandomPosition(sr),
+                delay,
+              );
+              savedSpawnTimeoutsRef.current.push(id);
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+      setIsPlaying(true);
       requestRef.current = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(requestRef.current);
-    }, [initGame, tick]);
+      return () => {
+        savedSpawnTimeoutsRef.current.forEach((id) => clearTimeout(id));
+        savedSpawnTimeoutsRef.current = [];
+        cancelAnimationFrame(requestRef.current);
+      };
+    }, [initGame, tick, spawnCustomSpriteAtRandomPosition]);
 
     // Flower growth: every 5s advance stage or respawn stage-3 flowers
     useEffect(() => {
@@ -1307,12 +1403,11 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
           style={{ imageRendering: "pixelated" }}
         />
 
-        {/* Start Overlay (Audio gate) */}
+        {/* Start Overlay: world + saved data ready before map is shown */}
         {!isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
-            <p className="text-white font-mono animate-pulse">
-              Initializing World...
-            </p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/60 z-20">
+            <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" aria-hidden />
+            <p className="text-white font-mono text-lg">Initializing World...</p>
           </div>
         )}
 

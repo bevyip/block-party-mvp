@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import GameCanvas, { GameCanvasRef } from "./components/GameCanvas";
 import SidePanel from "./components/SidePanel";
-import { SpriteResult } from "./types";
+import { SpriteResult, CREATIONS_STORAGE_KEY, MAX_SAVED_CREATIONS } from "./types";
+import { ensurePreviewContainerExists } from "./utils/litebrite/boardCropper";
 import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
 
 const SIDEBAR_WIDTH_PX = 320; // md:w-80 = 20rem
@@ -37,12 +38,26 @@ export default function App() {
     return () => window.removeEventListener("resize", updateMapScale);
   }, [updateMapScale]);
 
+  useEffect(() => {
+    ensurePreviewContainerExists();
+  }, []);
+
   const handleSpriteConfirm = async (spriteResult: SpriteResult) => {
-    // Add the sprite to the game when user confirms
     if (gameCanvasRef.current) {
       setIsSpawning(true);
       try {
         await gameCanvasRef.current.addCustomSprite(spriteResult);
+        // Persist creation (views only) for future sessions
+        try {
+          const raw = localStorage.getItem(CREATIONS_STORAGE_KEY);
+          const list: SpriteResult[] = raw ? JSON.parse(raw) : [];
+          list.push(spriteResult);
+          // Keep only the most recent N to avoid localStorage/memory OOM
+          const trimmed = list.slice(-MAX_SAVED_CREATIONS);
+          localStorage.setItem(CREATIONS_STORAGE_KEY, JSON.stringify(trimmed));
+        } catch {
+          // ignore storage errors
+        }
       } finally {
         setIsSpawning(false);
       }

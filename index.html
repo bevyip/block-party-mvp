@@ -8,6 +8,18 @@
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👾</text></svg>" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            screens: {
+              /* Surface Pro 7 and similar short viewports (~912px or less) */
+              short: { raw: "(max-height: 900px)" },
+            },
+          },
+        },
+      };
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         /* Ensure pixel art looks crisp when scaled up */

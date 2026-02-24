@@ -4,9 +4,16 @@ interface SpritePreviewProps {
   pixels: string[][];
   label: string;
   scale?: number;
+  /** Tighter label/container for short viewports */
+  compact?: boolean;
 }
 
-const SpritePreview: React.FC<SpritePreviewProps> = ({ pixels, label, scale = 8 }) => {
+const SpritePreview: React.FC<SpritePreviewProps> = ({
+  pixels,
+  label,
+  scale = 8,
+  compact = false,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const height = pixels.length;
@@ -46,9 +53,15 @@ const SpritePreview: React.FC<SpritePreviewProps> = ({ pixels, label, scale = 8 
   if (!pixels || pixels.length === 0) return null;
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-xs uppercase tracking-widest text-neutral-500 font-bold">{label}</span>
-      <div className="p-1 bg-neutral-800 rounded border border-neutral-700">
+    <div className={`flex flex-col items-center ${compact ? "gap-1" : "gap-2"}`}>
+      <span
+        className={`uppercase tracking-widest text-neutral-500 font-bold ${
+          compact ? "text-[10px]" : "text-xs"
+        }`}
+      >
+        {label}
+      </span>
+      <div className={`bg-neutral-800 rounded border border-neutral-700 ${compact ? "p-0.5" : "p-1"}`}>
         <canvas
           ref={canvasRef}
           width={width * scale}

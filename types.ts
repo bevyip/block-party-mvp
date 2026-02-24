@@ -101,6 +101,12 @@ export enum ProcessingStatus {
   ERROR = 'ERROR'
 }
 
+/** localStorage key for saved custom creations (views only). */
+export const CREATIONS_STORAGE_KEY = 'block-party-creations';
+
+/** Max saved creations to avoid localStorage and memory bloat (OOM). */
+export const MAX_SAVED_CREATIONS = 50;
+
 export interface ProcessingState {
   status: ProcessingStatus;
   error?: string;
