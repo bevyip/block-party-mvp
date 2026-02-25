@@ -249,6 +249,7 @@ export const cropBoard = async (file: File): Promise<string> => {
       .litebrite-preview__btn--reset:hover { background: #dc2626; }
       .litebrite-preview__img { max-width: 300px; border: 3px solid #ef4444; border-radius: 4px; display: none; }
       .litebrite-preview--open .litebrite-preview__img { display: block; }
+      body.voxel-overlay-active .litebrite-preview { visibility: hidden; pointer-events: none; }
     `;
     document.head.appendChild(style);
   }
@@ -264,11 +265,7 @@ export const cropBoard = async (file: File): Promise<string> => {
     previewImg.style.display = "";
   }
   container.classList.remove("litebrite-preview--open");
-  const toggleBtn = container.querySelector(".litebrite-preview__toggle") as HTMLElement | null;
-  if (toggleBtn) {
-    toggleBtn.style.display = "";
-    (toggleBtn as HTMLButtonElement).textContent = "Preview";
-  }
+  // Preview button visibility is controlled by setPreviewButtonVisible (after Gemini stage 1 only)
 
   return dataUrl.split(",")[1];
 };
@@ -308,6 +305,7 @@ function createPreviewContainer(): HTMLDivElement {
   toggleBtn.className = "litebrite-preview__btn litebrite-preview__toggle";
   toggleBtn.textContent = "Preview";
   toggleBtn.setAttribute("aria-label", "Toggle crop preview");
+  toggleBtn.style.display = "none"; // Shown only after Gemini stage 1 succeeds
   toggleBtn.addEventListener("click", () => {
     container.classList.toggle("litebrite-preview--open");
     toggleBtn.textContent = container.classList.contains("litebrite-preview--open") ? "Close" : "Preview";
@@ -322,6 +320,13 @@ function createPreviewContainer(): HTMLDivElement {
   container.appendChild(btnWrapper);
   container.appendChild(previewImgEl);
   return container;
+}
+
+/** Show or hide the Preview button. Call with true after Gemini stage 1 succeeds. */
+export function setPreviewButtonVisible(visible: boolean): void {
+  const container = document.getElementById(LITEBRITE_PREVIEW_ID);
+  const toggleBtn = container?.querySelector(".litebrite-preview__toggle") as HTMLElement | null;
+  if (toggleBtn) toggleBtn.style.display = visible ? "" : "none";
 }
 
 /** Ensure the top-right preview toolbar (Preview + Clear saved) exists. Call on app load so the Clear button is visible. */
@@ -339,6 +344,7 @@ export function ensurePreviewContainerExists(): void {
       .litebrite-preview__btn--reset:hover { background: #dc2626; }
       .litebrite-preview__img { max-width: 300px; border: 3px solid #ef4444; border-radius: 4px; display: none; }
       .litebrite-preview--open .litebrite-preview__img { display: block; }
+      body.voxel-overlay-active .litebrite-preview { visibility: hidden; pointer-events: none; }
     `;
     document.head.appendChild(style);
   }

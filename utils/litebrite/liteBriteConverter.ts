@@ -20,14 +20,20 @@ import {
 } from "./gridRenderer";
 import type { LiteBriteConversionResult } from "./types";
 
+export interface ConvertLiteBriteOptions {
+  onStage1Complete?: () => void;
+}
+
 export const convertLiteBriteToSprite = async (
-  file: File
+  file: File,
+  options?: ConvertLiteBriteOptions
 ): Promise<LiteBriteConversionResult> => {
   console.log("[LiteBrite] Step 1: Cropping board from photo...");
   const boardBase64 = await cropBoard(file);
 
   console.log("[LiteBrite] Step 2: Running semantic analysis...");
   const semanticAnalysis = await runStage1(boardBase64);
+  options?.onStage1Complete?.();
 
   console.log("[LiteBrite] Step 3: Generating front/back character grid...");
   const gridAnalysis = await runStage2(boardBase64, semanticAnalysis);

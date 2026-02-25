@@ -8,8 +8,9 @@ export const drawSpeechBubble = (
     sprite: Sprite,
     anchor?: { x: number; y: number }
 ) => {
-    if (!sprite.bubble) return;
-    
+    const text = sprite.speechBubble ?? sprite.bubble?.text;
+    if (text == null) return;
+
     const bx = anchor ? Math.floor(anchor.x) : Math.floor(sprite.x + SPRITE_SIZE.w/2);
     const by = anchor ? Math.floor(anchor.y) : Math.floor(sprite.y - 12 * SCALE);
     
@@ -38,6 +39,6 @@ export const drawSpeechBubble = (
     ctx.font = `${8 * SCALE}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(sprite.bubble.text, bx, by - bH/2 + s(1));
+    ctx.fillText(text, bx, by - bH/2 + s(1));
 };
 

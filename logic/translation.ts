@@ -9,6 +9,7 @@
 import { SpriteResult, SpriteMatrix } from "../types";
 import { fileToBase64, getImageDimensions } from "../utils/imageUtils.js";
 import { convertLiteBriteToSprite } from "../utils/litebrite/liteBriteConverter";
+import { setPreviewButtonVisible } from "../utils/litebrite/boardCropper";
 import type { LiteBriteConversionResult, PegGrid } from "../utils/litebrite/types";
 
 // ── Color helpers (kept for canvas pipeline) ───────────────
@@ -321,7 +322,9 @@ export const generateSpriteFromImageFromFile = async (
 ): Promise<GenerateSpriteFromFileResult> => {
   try {
     console.log("[Sprite] Trying Lite-Brite pipeline...");
-    const liteBriteResult = await convertLiteBriteToSprite(file);
+    const liteBriteResult = await convertLiteBriteToSprite(file, {
+      onStage1Complete: () => setPreviewButtonVisible(true),
+    });
     const result = liteBriteResultToSpriteResult(liteBriteResult);
 
     console.log("[Sprite] Lite-Brite conversion successful", {

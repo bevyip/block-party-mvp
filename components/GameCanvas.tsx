@@ -29,7 +29,19 @@ import {
   CREATIONS_STORAGE_KEY,
   MAX_SAVED_CREATIONS,
 } from "../types";
-import { playBlip, playChirp, playSpawn } from "../utils/audio.js";
+import {
+  playBlip,
+  playChirp,
+  playSpawn,
+  isVoxelPreviewActive,
+} from "../utils/audio.js";
+
+const playEatingSound = () => {
+  if (isVoxelPreviewActive()) return;
+  const audio = new Audio("/sounds/eating.mp3");
+  audio.volume = 0.4;
+  audio.play().catch(() => {});
+};
 
 // Import Renderers
 import { drawSprite } from "./renderers/SpriteRenderer";
@@ -151,13 +163,21 @@ const FLOWER_RENDER_W = s(6) * FLOWER_SCALE;
 const FLOWER_RENDER_H = s(6) * FLOWER_SCALE;
 
 /** Find a valid position for a flower respawn (no overlap with river, bridge, trees, rocks). */
-const findValidFlowerSpawnPosition = (state: GameState): { renderBounds: Rect } => {
+const findValidFlowerSpawnPosition = (
+  state: GameState,
+): { renderBounds: Rect } => {
   for (let attempt = 0; attempt < 50; attempt++) {
     const x = Math.random() * (GAME_WIDTH - FLOWER_RENDER_W);
     const y = Math.random() * (GAME_HEIGHT - FLOWER_RENDER_H);
-    const renderBounds: Rect = { x, y, width: FLOWER_RENDER_W, height: FLOWER_RENDER_H };
+    const renderBounds: Rect = {
+      x,
+      y,
+      width: FLOWER_RENDER_W,
+      height: FLOWER_RENDER_H,
+    };
     const overlaps = state.obstacles.some((o) => {
-      if (o.type === EntityType.FLOWER || o.type === EntityType.GRASS_PATCH) return false;
+      if (o.type === EntityType.FLOWER || o.type === EntityType.GRASS_PATCH)
+        return false;
       return AABB(renderBounds, o.bounds);
     });
     if (!overlaps) return { renderBounds };
@@ -196,8 +216,7 @@ export interface GameCanvasRef {
   addCustomSprite: (spriteResult: SpriteResult) => Promise<void>;
 }
 
-interface GameCanvasProps {
-}
+interface GameCanvasProps {}
 
 export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
   (_, ref) => {
@@ -209,6 +228,10 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
     });
     const requestRef = useRef<number>(0);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [, setGameSlice] = useState<{
+      obstacles: Obstacle[];
+      sprites: Sprite[];
+    }>({ obstacles: [], sprites: [] });
     const bridgeCenterRef = useRef<{ x: number; y: number } | null>(null);
     const bridgeYRef = useRef<number>(GAME_HEIGHT / 2);
     const bridgeSegmentsRef = useRef<Obstacle[]>([]);
@@ -216,192 +239,202 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
     const nextSpriteIdRef = useRef<number>(SPRITE_COUNT);
 
     // Internal: spawn one custom sprite (used by ref and by saved-creations loader)
-    const spawnCustomSpriteInternal = useCallback((spriteResult: SpriteResult) => {
-      const state = gameStateRef.current;
-      const bridgeCenter = bridgeCenterRef.current;
-      if (!bridgeCenter) return;
+    const spawnCustomSpriteInternal = useCallback(
+      (spriteResult: SpriteResult) => {
+        const state = gameStateRef.current;
+        const bridgeCenter = bridgeCenterRef.current;
+        if (!bridgeCenter) return;
 
-      const spriteHeight = spriteResult.dimensions.height * SCALE;
-      const spriteWidth = spriteResult.dimensions.width * SCALE;
-      const halfH = (spriteResult.dimensions.height * SCALE) / 2;
-      const moveRight = Math.random() >= 0.5;
-      const MOVEMENT_SPEED = 0.25 * SCALE;
-      const spawnDelay = 60 * (1 + Math.random());
+        const spriteHeight = spriteResult.dimensions.height * SCALE;
+        const spriteWidth = spriteResult.dimensions.width * SCALE;
+        const halfH = (spriteResult.dimensions.height * SCALE) / 2;
+        const moveRight = Math.random() >= 0.5;
+        const MOVEMENT_SPEED = 0.25 * SCALE;
+        const spawnDelay = 60 * (1 + Math.random());
 
-      const customSprite: Sprite = {
-        id: nextSpriteIdRef.current++,
-        x: bridgeCenter.x - spriteWidth / 2,
-        y: bridgeCenter.y - spriteHeight / 2,
-        vx: 0,
-        vy: 0,
-        color: "#888",
-        hairColor: "#888",
-        pantsColor: "#888",
-        skinTone: "#888",
-        interactionCooldown: Math.random() * 200,
-        facing: moveRight ? "right" : "left",
-        bobOffset: Math.random() * Math.PI * 2,
-        state: "idle",
-        stateTimer: spawnDelay,
-        isCustom: true,
-        customSprite: {
-          matrix: spriteResult.matrix,
-          dimensions: spriteResult.dimensions,
-        },
-      };
-      (customSprite as any)._spawnDirection = moveRight ? "right" : "left";
-      (customSprite as any)._spawnSpeed = MOVEMENT_SPEED;
-
-      const isPositionValid = (spriteX: number, spriteY: number): boolean => {
-        const box = {
-          x: spriteX,
-          y: spriteY + halfH,
-          width: spriteWidth,
-          height: halfH,
+        const customSprite: Sprite = {
+          id: nextSpriteIdRef.current++,
+          x: bridgeCenter.x - spriteWidth / 2,
+          y: bridgeCenter.y - spriteHeight / 2,
+          vx: 0,
+          vy: 0,
+          color: "#888",
+          hairColor: "#888",
+          pantsColor: "#888",
+          skinTone: "#888",
+          interactionCooldown: Math.random() * 200,
+          facing: moveRight ? "right" : "left",
+          bobOffset: Math.random() * Math.PI * 2,
+          state: "idle",
+          stateTimer: spawnDelay,
+          isCustom: true,
+          customSprite: {
+            matrix: spriteResult.matrix,
+            dimensions: spriteResult.dimensions,
+          },
         };
-        const onBridge = bridgeSegmentsRef.current.some((b) =>
-          AABB(box, b.bounds),
-        );
-        const obstacleHit = state.obstacles.some((o) => {
-          if (
-            o.type === EntityType.FLOWER ||
-            o.type === EntityType.GRASS_PATCH ||
-            o.type === EntityType.BRIDGE
-          )
-            return false;
-          if (onBridge && o.type === EntityType.RIVER_SEGMENT) return false;
-          return AABB(box, o.bounds);
-        });
-        if (obstacleHit) return false;
-        const newCenter = {
-          x: spriteX + spriteWidth / 2,
-          y: spriteY + spriteHeight / 2,
-        };
-        const tooCloseToOther = state.sprites.some((other) => {
-          const oc = getSpriteCenter(other);
-          return (
-            distSq(newCenter.x, newCenter.y, oc.x, oc.y) <
-            SPAWN_CLEARANCE * SPAWN_CLEARANCE
+        (customSprite as any)._spawnDirection = moveRight ? "right" : "left";
+        (customSprite as any)._spawnSpeed = MOVEMENT_SPEED;
+
+        const isPositionValid = (spriteX: number, spriteY: number): boolean => {
+          const box = {
+            x: spriteX,
+            y: spriteY + halfH,
+            width: spriteWidth,
+            height: halfH,
+          };
+          const onBridge = bridgeSegmentsRef.current.some((b) =>
+            AABB(box, b.bounds),
           );
-        });
-        return !tooCloseToOther;
-      };
+          const obstacleHit = state.obstacles.some((o) => {
+            if (
+              o.type === EntityType.FLOWER ||
+              o.type === EntityType.GRASS_PATCH ||
+              o.type === EntityType.BRIDGE
+            )
+              return false;
+            if (onBridge && o.type === EntityType.RIVER_SEGMENT) return false;
+            return AABB(box, o.bounds);
+          });
+          if (obstacleHit) return false;
+          const newCenter = {
+            x: spriteX + spriteWidth / 2,
+            y: spriteY + spriteHeight / 2,
+          };
+          const tooCloseToOther = state.sprites.some((other) => {
+            const oc = getSpriteCenter(other);
+            return (
+              distSq(newCenter.x, newCenter.y, oc.x, oc.y) <
+              SPAWN_CLEARANCE * SPAWN_CLEARANCE
+            );
+          });
+          return !tooCloseToOther;
+        };
 
-      const baseX = bridgeCenter.x - spriteWidth / 2;
-      const baseY = bridgeCenter.y - spriteHeight / 2;
-      const xOffsets = [
-        0,
-        -s(80),
-        s(80),
-        -s(60),
-        s(60),
-        -s(40),
-        s(40),
-        -s(20),
-        s(20),
-      ];
-      let placed = false;
-      for (const dx of xOffsets) {
-        const tryX = baseX + dx;
-        if (isPositionValid(tryX, baseY)) {
-          customSprite.x = tryX;
-          customSprite.y = baseY;
-          state.sprites.push(customSprite);
-          placed = true;
-          break;
+        const baseX = bridgeCenter.x - spriteWidth / 2;
+        const baseY = bridgeCenter.y - spriteHeight / 2;
+        const xOffsets = [
+          0,
+          -s(80),
+          s(80),
+          -s(60),
+          s(60),
+          -s(40),
+          s(40),
+          -s(20),
+          s(20),
+        ];
+        let placed = false;
+        for (const dx of xOffsets) {
+          const tryX = baseX + dx;
+          if (isPositionValid(tryX, baseY)) {
+            customSprite.x = tryX;
+            customSprite.y = baseY;
+            state.sprites.push(customSprite);
+            placed = true;
+            break;
+          }
         }
-      }
-      if (!placed) {
-        state.sprites.push(customSprite);
-      }
+        if (!placed) {
+          state.sprites.push(customSprite);
+        }
 
-      playSpawn();
+        playSpawn();
 
-      const landingY = customSprite.y;
-      const startY = -spriteHeight;
-      customSprite.y = startY;
-      (customSprite as any)._spawnDrop = {
-        startY,
-        endY: landingY,
-        startTime: performance.now(),
-        durationMs: 1000,
-      };
-    }, []);
+        const landingY = customSprite.y;
+        const startY = -spriteHeight;
+        customSprite.y = startY;
+        (customSprite as any)._spawnDrop = {
+          startY,
+          endY: landingY,
+          startTime: performance.now(),
+          durationMs: 1000,
+        };
+      },
+      [],
+    );
 
     // Spawn a saved creation at a random valid position, dropping in from above
-    const spawnCustomSpriteAtRandomPosition = useCallback((spriteResult: SpriteResult) => {
-      const state = gameStateRef.current;
-      const spriteHeight = spriteResult.dimensions.height * SCALE;
-      const spriteWidth = spriteResult.dimensions.width * SCALE;
-      let sx = 0;
-      let sy = 0;
-      let validPos = false;
-      let attempts = 0;
-      while (!validPos && attempts < 100) {
-        sx = Math.random() * (GAME_WIDTH - spriteWidth - s(20)) + s(10);
-        sy = Math.random() * (GAME_HEIGHT - spriteHeight - s(20)) + s(10);
-        const spriteBox = {
+    const spawnCustomSpriteAtRandomPosition = useCallback(
+      (spriteResult: SpriteResult) => {
+        const state = gameStateRef.current;
+        const spriteHeight = spriteResult.dimensions.height * SCALE;
+        const spriteWidth = spriteResult.dimensions.width * SCALE;
+        let sx = 0;
+        let sy = 0;
+        let validPos = false;
+        let attempts = 0;
+        while (!validPos && attempts < 100) {
+          sx = Math.random() * (GAME_WIDTH - spriteWidth - s(20)) + s(10);
+          sy = Math.random() * (GAME_HEIGHT - spriteHeight - s(20)) + s(10);
+          const spriteBox = {
+            x: sx,
+            y: sy + spriteHeight / 2,
+            width: spriteWidth,
+            height: spriteHeight / 2,
+          };
+          const collision = state.obstacles.some((o) => {
+            if (
+              o.type === EntityType.FLOWER ||
+              o.type === EntityType.GRASS_PATCH ||
+              o.type === EntityType.BRIDGE
+            )
+              return false;
+            return AABB(spriteBox, o.bounds);
+          });
+          if (!collision) validPos = true;
+          attempts++;
+        }
+        if (!validPos) {
+          sx = Math.random() * (GAME_WIDTH - spriteWidth);
+          sy = Math.random() * (GAME_HEIGHT - spriteHeight);
+        }
+        const landingY = sy;
+        const startY = -spriteHeight;
+        const customSprite: Sprite = {
+          id: nextSpriteIdRef.current++,
           x: sx,
-          y: sy + spriteHeight / 2,
-          width: spriteWidth,
-          height: spriteHeight / 2,
+          y: startY,
+          vx: 0,
+          vy: 0,
+          color: "#888",
+          hairColor: "#888",
+          pantsColor: "#888",
+          skinTone: "#888",
+          interactionCooldown: Math.random() * 200,
+          facing: "front",
+          bobOffset: Math.random() * Math.PI * 2,
+          state: "idle",
+          stateTimer: 60 * (3 + Math.random() * 5),
+          isCustom: true,
+          customSprite: {
+            matrix: spriteResult.matrix,
+            dimensions: spriteResult.dimensions,
+          },
         };
-        const collision = state.obstacles.some((o) => {
-          if (
-            o.type === EntityType.FLOWER ||
-            o.type === EntityType.GRASS_PATCH ||
-            o.type === EntityType.BRIDGE
-          )
-            return false;
-          return AABB(spriteBox, o.bounds);
-        });
-        if (!collision) validPos = true;
-        attempts++;
-      }
-      if (!validPos) {
-        sx = Math.random() * (GAME_WIDTH - spriteWidth);
-        sy = Math.random() * (GAME_HEIGHT - spriteHeight);
-      }
-      const landingY = sy;
-      const startY = -spriteHeight;
-      const customSprite: Sprite = {
-        id: nextSpriteIdRef.current++,
-        x: sx,
-        y: startY,
-        vx: 0,
-        vy: 0,
-        color: "#888",
-        hairColor: "#888",
-        pantsColor: "#888",
-        skinTone: "#888",
-        interactionCooldown: Math.random() * 200,
-        facing: "front",
-        bobOffset: Math.random() * Math.PI * 2,
-        state: "idle",
-        stateTimer: 60 * (3 + Math.random() * 5),
-        isCustom: true,
-        customSprite: {
-          matrix: spriteResult.matrix,
-          dimensions: spriteResult.dimensions,
-        },
-      };
-      (customSprite as any)._spawnDrop = {
-        startY,
-        endY: landingY,
-        startTime: performance.now(),
-        durationMs: 1000,
-      };
-      state.sprites.push(customSprite);
-      playSpawn();
-    }, []);
-
-    useImperativeHandle(ref, () => ({
-      addCustomSprite: async (spriteResult: SpriteResult) => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        spawnCustomSpriteInternal(spriteResult);
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        (customSprite as any)._spawnDrop = {
+          startY,
+          endY: landingY,
+          startTime: performance.now(),
+          durationMs: 1000,
+        };
+        state.sprites.push(customSprite);
+        playSpawn();
       },
-    }), [spawnCustomSpriteInternal]);
+      [],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        addCustomSprite: async (spriteResult: SpriteResult) => {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          spawnCustomSpriteInternal(spriteResult);
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        },
+      }),
+      [spawnCustomSpriteInternal],
+    );
 
     const savedSpawnTimeoutsRef = useRef<number[]>([]);
 
@@ -552,6 +585,7 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
             bounds,
             renderBounds: { x: tx, y: ty, width: treeW, height: treeH },
             variant: Math.floor(Math.random() * 3),
+            apples: [],
           });
         }
       };
@@ -752,6 +786,27 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
           facingRight: Math.random() > 0.5,
           wiggleOffset: Math.random() * Math.PI * 2,
           riverOffset: (Math.random() - 0.5) * s(10),
+        });
+      }
+
+      // 5 apples total across all trees — place on randomly chosen trees
+      const treeIndices = obstacles
+        .map((ob, i) => (ob.type === EntityType.TREE ? i : -1))
+        .filter((i) => i >= 0);
+      const now = Date.now();
+      for (let k = 0; k < 5; k++) {
+        const idx = treeIndices[Math.floor(Math.random() * treeIndices.length)];
+        const tree = obstacles[idx];
+        if (tree.type !== EntityType.TREE) continue;
+        tree.apples = tree.apples ?? [];
+        tree.apples.push({
+          state: "hanging" as const,
+          timer: now + 60000 + Math.random() * 240000,
+          x: 0,
+          y: 0,
+          vY: 0,
+          targetY: 0,
+          needsPositioning: true,
         });
       }
 
@@ -1113,8 +1168,14 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
               const nudge = 6 * SCALE;
               dx = (dx / d) * nudge;
               dy = (dy / d) * nudge;
-              sprite.x = Math.max(0, Math.min(GAME_WIDTH - spriteW, sprite.x + dx));
-              sprite.y = Math.max(0, Math.min(GAME_HEIGHT - spriteH, sprite.y + dy));
+              sprite.x = Math.max(
+                0,
+                Math.min(GAME_WIDTH - spriteW, sprite.x + dx),
+              );
+              sprite.y = Math.max(
+                0,
+                Math.min(GAME_HEIGHT - spriteH, sprite.y + dy),
+              );
             }
 
             if (sprite.interactionCooldown <= 0) {
@@ -1170,6 +1231,13 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
         if (sprite.bubble) {
           sprite.bubble.life--;
           if (sprite.bubble.life <= 0) sprite.bubble = undefined;
+        }
+        if (
+          sprite.speechBubbleTimer != null &&
+          Date.now() > sprite.speechBubbleTimer
+        ) {
+          delete (sprite as Partial<Sprite>).speechBubble;
+          delete (sprite as Partial<Sprite>).speechBubbleTimer;
         }
       });
     }, []);
@@ -1293,7 +1361,7 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
 
       // Draw Bubbles
       state.sprites.forEach((sprite) => {
-        if (sprite.bubble) {
+        if (sprite.bubble || sprite.speechBubble) {
           const anchor = sprite.isCustom
             ? customBubbleAnchors[sprite.id]
             : undefined;
@@ -1355,7 +1423,8 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
         let changed = false;
         const updatedObstacles = state.obstacles.map((o) => {
           if (o.type !== EntityType.FLOWER) return o;
-          if (o.flowerGrowthTimer == null || now < o.flowerGrowthTimer) return o;
+          if (o.flowerGrowthTimer == null || now < o.flowerGrowthTimer)
+            return o;
 
           changed = true;
 
@@ -1384,6 +1453,161 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
       return () => clearInterval(interval);
     }, []);
 
+    // Apple lifecycle: 5 apples per tree, staggered hang → fall → onGround; replace landed with new hanging; pickup unchanged.
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setGameSlice((prev) => {
+          const now = Date.now();
+          const source = gameStateRef.current;
+          if (source.obstacles.length === 0) return prev;
+
+          const updatedObstacles = source.obstacles.map((o) => {
+            if (o.type !== EntityType.TREE) return o;
+
+            const cx = o.renderBounds.x + o.renderBounds.width / 2;
+            const canopyY = o.renderBounds.y + o.renderBounds.height * 0.35;
+            const canopyR = o.renderBounds.width * 0.35;
+            const groundY = o.renderBounds.y + o.renderBounds.height;
+
+            const updatedApples = (o.apples ?? []).map((apple) => {
+              if (apple.needsPositioning) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * canopyR * 0.7;
+                return {
+                  ...apple,
+                  x: cx + Math.cos(angle) * dist,
+                  y: canopyY + Math.sin(angle) * dist * 0.5,
+                  targetY: groundY,
+                  needsPositioning: false,
+                };
+              }
+
+              if (apple.state === "hanging") {
+                if (apple.timer != null && now < apple.timer) return apple;
+                return {
+                  ...apple,
+                  state: "falling" as const,
+                  timer: undefined,
+                  vY: 0.5,
+                };
+              }
+
+              if (apple.state === "falling") {
+                const newVY = apple.vY + 0.4;
+                const newY = apple.y + newVY;
+                if (newY >= apple.targetY) {
+                  return {
+                    ...apple,
+                    state: "onGround" as const,
+                    y: apple.targetY,
+                    vY: 0,
+                  };
+                }
+                return { ...apple, y: newY, vY: newVY };
+              }
+
+              return apple;
+            });
+
+            return { ...o, apples: updatedApples };
+          });
+
+          // Maintain 5 hanging apples total across all trees — add replacements to random trees
+          const treeIndices = updatedObstacles
+            .map((ob, i) => (ob.type === EntityType.TREE ? i : -1))
+            .filter((i) => i >= 0);
+          const totalHanging = updatedObstacles
+            .flatMap((ob) =>
+              ob.type === EntityType.TREE ? (ob.apples ?? []) : [],
+            )
+            .filter((a) => a.state === "hanging").length;
+          let obstaclesWithReplacements = updatedObstacles;
+          const makeAppleForTree = (tree: Obstacle) => {
+            const cx = tree.renderBounds.x + tree.renderBounds.width / 2;
+            const canopyY =
+              tree.renderBounds.y + tree.renderBounds.height * 0.35;
+            const canopyR = tree.renderBounds.width * 0.35;
+            const groundY = tree.renderBounds.y + tree.renderBounds.height;
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.random() * canopyR * 0.7;
+            return {
+              state: "hanging" as const,
+              timer: now + 240000 + Math.random() * 60000,
+              x: cx + Math.cos(angle) * dist,
+              y: canopyY + Math.sin(angle) * dist * 0.5,
+              vY: 0,
+              targetY: groundY,
+              needsPositioning: false,
+            };
+          };
+          for (let k = 0; k < 5 - totalHanging; k++) {
+            if (treeIndices.length === 0) break;
+            const treeIdx =
+              treeIndices[Math.floor(Math.random() * treeIndices.length)];
+            const tree = obstaclesWithReplacements[treeIdx];
+            if (tree.type !== EntityType.TREE) continue;
+            const newA = makeAppleForTree(tree);
+            obstaclesWithReplacements = obstaclesWithReplacements.map(
+              (ob, i) =>
+                i === treeIdx && ob.type === EntityType.TREE
+                  ? { ...ob, apples: [...(ob.apples ?? []), newA] }
+                  : ob,
+            );
+          }
+
+          const PICKUP_RADIUS = SCALE * 14;
+          let finalObstacles = obstaclesWithReplacements;
+          let finalSprites = source.sprites;
+
+          obstaclesWithReplacements.forEach((ob) => {
+            if (ob.type !== EntityType.TREE || !ob.apples?.length) return;
+            ob.apples.forEach((apple) => {
+              if (apple.state !== "onGround") return;
+              const nearbySprite = finalSprites.find((s) => {
+                const sw =
+                  s.isCustom && s.customSprite
+                    ? s.customSprite.dimensions.width * SCALE
+                    : SPRITE_SIZE.w;
+                const sh =
+                  s.isCustom && s.customSprite
+                    ? s.customSprite.dimensions.height * SCALE
+                    : SPRITE_SIZE.h;
+                const dist = Math.sqrt(
+                  Math.pow(s.x + sw / 2 - apple.x, 2) +
+                    Math.pow(s.y + sh - apple.y, 2),
+                );
+                return dist < PICKUP_RADIUS;
+              });
+              if (nearbySprite) {
+                playEatingSound();
+                finalSprites = finalSprites.map((spr) =>
+                  spr.id === nearbySprite.id
+                    ? {
+                        ...spr,
+                        speechBubble: "🍎",
+                        speechBubbleTimer: now + 2500,
+                      }
+                    : spr,
+                );
+                finalObstacles = finalObstacles.map((t) =>
+                  t.id === ob.id && t.type === EntityType.TREE
+                    ? { ...t, apples: t.apples!.filter((a) => a !== apple) }
+                    : t,
+                );
+              }
+            });
+          });
+
+          gameStateRef.current.obstacles = finalObstacles;
+          gameStateRef.current.sprites = finalSprites;
+
+          return { ...prev, obstacles: finalObstacles, sprites: finalSprites };
+        });
+      }, 100);
+
+      return () => clearInterval(interval);
+    }, []);
+
     return (
       <div className="relative w-full h-full bg-black overflow-hidden">
         {/* Vignette Overlay */}
@@ -1406,11 +1630,15 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
         {/* Start Overlay: world + saved data ready before map is shown */}
         {!isPlaying && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/60 z-20">
-            <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin" aria-hidden />
-            <p className="text-white font-mono text-lg">Initializing World...</p>
+            <div
+              className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin"
+              aria-hidden
+            />
+            <p className="text-white font-mono text-lg">
+              Initializing World...
+            </p>
           </div>
         )}
-
       </div>
     );
   },

@@ -23,6 +23,18 @@ export interface Obstacle {
   // Only relevant when type is FLOWER
   flowerStage?: 1 | 2 | 3;
   flowerGrowthTimer?: number; // timestamp (Date.now()) when this flower next advances
+  // Only relevant when type is TREE — multiple apples per tree
+  apples?: TreeApple[];
+}
+
+export interface TreeApple {
+  state: "hanging" | "falling" | "onGround";
+  timer?: number; // timestamp for next state transition
+  x: number;
+  y: number;
+  vY: number;
+  targetY: number;
+  needsPositioning?: boolean;
 }
 
 export interface SpriteMatrix {
@@ -54,6 +66,8 @@ export interface Sprite {
   state: 'idle' | 'moving';
   stateTimer: number; // How long to remain in current state
 
+  speechBubble?: string;
+  speechBubbleTimer?: number;
   // Custom sprite data (from uploaded images)
   isCustom?: boolean;
   customSprite?: {

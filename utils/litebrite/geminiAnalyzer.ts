@@ -292,19 +292,36 @@ ${frontGrid.join("\n")}
 
 Color codes: ${colorList}, "." = empty/transparent
 
-Based on the front view shape above, generate the side view by reasoning about the 3D depth:
-- Count how wide the front view is — that is the object's width
-- Estimate how deep the object would be in 3D given what it is
-- ROUND objects (heart, apple, ball): depth ≈ same as width → side view nearly as wide as front
-- FLAT objects (flower, leaf): depth is very small → side view 2-4 cols wide only
-- The side view must be exactly ${targetHeight} rows tall
-- The silhouette shape of the side view should follow the same height profile as the front
+The side view represents the DEPTH of the object — how thick it is when viewed from the side.
+This width becomes the z-depth in a 3D voxel rendering, so it must feel physically real.
+
+3D depth rules:
+- ROUND objects (heart, apple, ball, orange): depth nearly equals width → side is wide oval
+- THICK flat objects (flower head, leaf, mushroom cap): still has real thickness → minimum 4-5 cols wide, showing a rounded edge profile
+- THIN flat objects (paper, card): 2-3 cols wide
+- CYLINDRICAL (bottle, trunk, stem): 40-60% of front width, straight sides
+
+IMPORTANT: Nothing should be 1-2 cols wide unless it is literally paper-thin.
+Even objects that appear flat from the front have real physical thickness in 3D.
+Use the object's real-world nature to estimate depth — for example:
+- A flower head: petals have thickness → 4-5 cols
+- A flower stem: cylindrical → 2-3 cols
+- A fruit (apple, orange): nearly as deep as wide → round oval side
+- A leaf: thin but not paper-thin → 2-3 cols
+- A person/character: body depth → 3-5 cols
+
+Apply this same reasoning to whatever object you are drawing.
+Ask yourself: if I held this object in my hand and looked at it from the side, how thick would it be?
+That thickness is what the side view width should represent.
+
+The side view must be exactly ${targetHeight} rows tall.
+The silhouette height profile should match the front view — wide rows in the front stay wide from the side.
 
 All rows same length, pad with "." symmetrically.
 
 Return ONLY this JSON (no markdown):
 {
-  "reasoning": "<what the front width is, what the estimated depth is, and why>",
+  "reasoning": "<state: what is this object's 3D shape, how deep is it, and what width did you choose for the side view>",
   "grid": ["row0", "row1", ...]
 }`;
 

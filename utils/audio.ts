@@ -1,6 +1,15 @@
 // Simple audio synth for retro effects
 let audioCtx: AudioContext | null = null;
 
+/** When true, all sounds except voxel preview are muted. Set by VoxelRevealOverlay. */
+let voxelPreviewActive = false;
+
+export const setVoxelPreviewActive = (active: boolean) => {
+  voxelPreviewActive = active;
+};
+
+export const isVoxelPreviewActive = () => voxelPreviewActive;
+
 const getAudioContext = () => {
   if (!audioCtx) {
     audioCtx = new (
@@ -11,6 +20,7 @@ const getAudioContext = () => {
 };
 
 export const playBlip = (pitch: number = 1.0) => {
+  if (voxelPreviewActive) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {
@@ -47,6 +57,7 @@ export const playBlip = (pitch: number = 1.0) => {
 };
 
 export const playChirp = () => {
+  if (voxelPreviewActive) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {
@@ -82,6 +93,7 @@ export const playChirp = () => {
 const SPAWN_DURATION = 1.0;
 
 export const playSpawn = () => {
+  if (voxelPreviewActive) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {

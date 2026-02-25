@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
 import { SpriteResult, ProcessingStatus } from "../types";
 import { generateSpriteFromImageFromFile } from "../logic/translation.js";
-import { removeLitebritePreview } from "../utils/litebrite/boardCropper";
+import { removeLitebritePreview, setPreviewButtonVisible } from "../utils/litebrite/boardCropper";
 import SpritePreview from "./SpritePreview";
 
 const SHORT_VIEWPORT_MAX_HEIGHT = 900;
@@ -50,6 +50,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
     setBuildError(null);
     setLowConfidenceWarning(false);
     setAiDescription(null);
+    setPreviewButtonVisible(false);
     // Reset file input
     const fileInput = document.getElementById("fileInput") as HTMLInputElement;
     if (fileInput) {
@@ -82,11 +83,15 @@ const SidePanel: React.FC<SidePanelProps> = ({
       } else {
         setSpriteData(out.result);
         setLowConfidenceWarning(Boolean(out.lowConfidence));
-        setAiDescription(out.aiGenerated && out.aiDescription ? out.aiDescription : null);
+        setAiDescription(
+          out.aiGenerated && out.aiDescription ? out.aiDescription : null,
+        );
         setProcessingState(ProcessingStatus.COMPLETE);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
+      setError(
+        err instanceof Error ? err.message : "An unknown error occurred",
+      );
       setProcessingState(ProcessingStatus.ERROR);
     }
   }, []);
@@ -95,8 +100,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
     if (spriteData) {
       removeLitebritePreview();
       onSpriteConfirm(spriteData);
+      resetPanel();
     }
-  }, [spriteData, onSpriteConfirm]);
+  }, [spriteData, onSpriteConfirm, resetPanel]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
