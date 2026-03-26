@@ -43,3 +43,7 @@ Thumbs.db
 # Local-only readme (run instructions)
 README.local.md
 api-server.cjs
+
+# Generated sprites — keep manifest, ignore PNG folders
+public/generated-sprites/*/
+!public/generated-sprites/manifest.json

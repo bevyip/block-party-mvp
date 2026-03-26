@@ -1,0 +1,23 @@
+{
+  "sprites": [
+    {
+      "id": "mn6uzw10lrix",
+      "createdAt": "2025-03-25T12:00:00.000Z",
+      "object": "character",
+      "gender": "male",
+      "themeSummary": "Saved sprite (manifest repaired)",
+      "states": ["idle", "walk", "special"],
+      "hasPortrait": true,
+      "customStateName": "special",
+      "customSpec": {
+        "stateName": "special",
+        "frameCount": 3,
+        "directionRows": 4,
+        "description": "Custom animation",
+        "looping": true,
+        "fps": 8,
+        "rowOrder": "up_left_down_right"
+      }
+    }
+  ]
+}

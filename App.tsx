@@ -1,36 +1,58 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import GameCanvas, { GameCanvasRef } from "./components/GameCanvas";
 import SidePanel from "./components/SidePanel";
-import { VoxelRevealOverlay } from "./components/VoxelRevealOverlay";
 import {
   SpriteResult,
   CREATIONS_STORAGE_KEY,
   MAX_SAVED_CREATIONS,
 } from "./types";
-import type { PegGrid } from "./utils/litebrite/types";
-import { ensurePreviewContainerExists } from "./utils/litebrite/boardCropper";
-import { GAME_WIDTH, GAME_HEIGHT } from "./constants";
+import { ResetSavedCreationsButton } from "./components/ResetSavedCreationsButton";
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  PANEL_CONTENT_FADE_MS,
+  PANEL_WIDTH_EASING,
+  PANEL_WIDTH_MS,
+  SIDE_PANEL_EXPAND_W,
+} from "./constants";
+import { usePrefersReducedMotion } from "./hooks/usePrefersReducedMotion";
 
-function spriteMatrixToPegGrid(view: string[][]): PegGrid {
-  return view.map((row) => row.map((c) => (c === "transparent" ? null : c)));
-}
+/** Horizontal margin from `mx-2 md:mx-4` on the game wrapper (desktop-only layout). */
+const GAME_WRAPPER_MARGIN_X = 32;
 
-const SIDEBAR_WIDTH_PX = 320; // md:w-80 = 20rem
 const SMALL_SCREEN_BREAKPOINT = 768;
 
 export default function App() {
+  const reduceMotion = usePrefersReducedMotion();
   const gameCanvasRef = useRef<GameCanvasRef>(null);
-  const pendingSpriteRef = useRef<SpriteResult | null>(null);
   const [isSpawning, setIsSpawning] = useState(false);
-  const [showVoxelReveal, setShowVoxelReveal] = useState(false);
-  const [pendingSprite, setPendingSprite] = useState<SpriteResult | null>(null);
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [mapScale, setMapScale] = useState(1);
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const mapRowRef = useRef<HTMLDivElement>(null);
+  const [mapRowSize, setMapRowSize] = useState({ width: 0, height: 0 });
   const [isSmallScreen, setIsSmallScreen] = useState(
     () =>
       typeof window !== "undefined" &&
       window.innerWidth < SMALL_SCREEN_BREAKPOINT,
   );
+  const [pathname, setPathname] = useState<string>(() =>
+    typeof window !== "undefined" ? window.location.pathname : "/",
+  );
+
+  const isLegacyIndexView =
+    pathname === "/legacy.html" ||
+    pathname === "/legacy" ||
+    pathname === "/legacy/" ||
+    pathname === "/archive" ||
+    pathname === "/archive/";
+  const showSidePanel =
+    pathname === "/" || pathname === "/map" || pathname === "/map.html";
 
   useEffect(() => {
     const mql = window.matchMedia(
@@ -42,33 +64,51 @@ export default function App() {
     return () => mql.removeEventListener("change", handler);
   }, []);
 
-  const updateMapScale = useCallback(() => {
-    const sidebarWidth =
-      isPanelOpen && window.innerWidth >= 768 ? SIDEBAR_WIDTH_PX : 0;
-    // Reserve space for main padding (px-4/px-8) and canvas margins (mx-2/mx-4) so canvas stays within container
-    const paddingAndMargin = 96;
-    const availableWidth = Math.max(
-      0,
-      window.innerWidth - sidebarWidth - paddingAndMargin,
-    );
-    setMapScale(Math.min(1, availableWidth / GAME_WIDTH));
-  }, [isPanelOpen]);
-
   useEffect(() => {
-    updateMapScale();
-    window.addEventListener("resize", updateMapScale);
-    return () => window.removeEventListener("resize", updateMapScale);
-  }, [updateMapScale]);
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
-  useEffect(() => {
-    ensurePreviewContainerExists();
+  useLayoutEffect(() => {
+    const el = mapRowRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect;
+      if (cr) setMapRowSize({ width: cr.width, height: cr.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
-    if (showVoxelReveal) document.body.classList.add("voxel-overlay-active");
-    else document.body.classList.remove("voxel-overlay-active");
-    return () => document.body.classList.remove("voxel-overlay-active");
-  }, [showVoxelReveal]);
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, []);
+
+  const mapScale = useMemo(() => {
+    const fitW =
+      mapRowSize.width > 0
+        ? mapRowSize.width
+        : typeof window !== "undefined"
+          ? window.innerWidth
+          : GAME_WIDTH;
+    const fitH =
+      mapRowSize.height > 0
+        ? mapRowSize.height
+        : typeof window !== "undefined"
+          ? window.innerHeight
+          : GAME_HEIGHT;
+    const widthScale = Math.max(0, fitW - GAME_WRAPPER_MARGIN_X) / GAME_WIDTH;
+    const heightScale = Math.max(0, fitH - (isLegacyIndexView ? 16 : 96)) / GAME_HEIGHT;
+    return Math.min(1, widthScale, heightScale);
+  }, [mapRowSize, isLegacyIndexView]);
 
   const addSpriteToMap = useCallback(async (spriteResult: SpriteResult) => {
     if (!gameCanvasRef.current) return;
@@ -89,19 +129,12 @@ export default function App() {
     }
   }, []);
 
-  const handleSpriteConfirm = useCallback((spriteResult: SpriteResult) => {
-    pendingSpriteRef.current = spriteResult;
-    setPendingSprite(spriteResult);
-    setShowVoxelReveal(true);
-  }, []);
-
-  const handleVoxelRevealComplete = useCallback(() => {
-    const toAdd = pendingSpriteRef.current;
-    setShowVoxelReveal(false);
-    setPendingSprite(null);
-    pendingSpriteRef.current = null;
-    if (toAdd) void addSpriteToMap(toAdd);
-  }, [addSpriteToMap]);
+  const handleSpriteConfirm = useCallback(
+    (spriteResult: SpriteResult) => {
+      void addSpriteToMap(spriteResult);
+    },
+    [addSpriteToMap],
+  );
 
   if (isSmallScreen) {
     return (
@@ -115,93 +148,131 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-neutral-900 flex">
-      {showVoxelReveal && pendingSprite && (
-        <VoxelRevealOverlay
-          frontGrid={spriteMatrixToPegGrid(pendingSprite.matrix.front)}
-          sideGrid={spriteMatrixToPegGrid(pendingSprite.matrix.left)}
-          onComplete={handleVoxelRevealComplete}
-        />
+    <div className="h-screen w-screen overflow-hidden bg-neutral-900 flex flex-row">
+      {showSidePanel && (
+        <aside
+          aria-label="Sprite tools panel"
+          aria-expanded={sidePanelOpen}
+          className="font-google-sans-code text-neutral-200"
+          style={{
+            width: sidePanelOpen
+              ? "clamp(180px, 28vw, 320px)"
+              : SIDE_PANEL_EXPAND_W,
+            transition: reduceMotion
+              ? "none"
+              : `width ${PANEL_WIDTH_MS}ms ${PANEL_WIDTH_EASING}`,
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            backgroundColor: "#252525",
+            borderRight: "1px solid #333",
+            overflow: "hidden",
+            boxSizing: "border-box",
+          }}
+        >
+          {sidePanelOpen ? (
+            <div className="box-border flex w-full shrink-0 items-center justify-between gap-3 px-3 pt-3 pb-3">
+              <h2 className="font-google-sans-code min-w-0 flex-1 text-left text-xl font-semibold leading-tight tracking-wide text-neutral-100">
+                Block Party
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSidePanelOpen(false)}
+                aria-label="Collapse side panel"
+                className="shrink-0"
+                style={{
+                  width: 36,
+                  height: 36,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "1px solid #444",
+                  borderRadius: 6,
+                  background: "#1a1a1a",
+                  color: "#e5e5e5",
+                  cursor: "pointer",
+                  fontSize: 20,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <div className="box-border flex min-h-[44px] w-full shrink-0 items-center justify-center px-0 py-2">
+              <button
+                type="button"
+                onClick={() => setSidePanelOpen(true)}
+                aria-label="Expand side panel"
+                style={{
+                  width: 36,
+                  height: 36,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "1px solid #444",
+                  borderRadius: 6,
+                  background: "#1a1a1a",
+                  color: "#e5e5e5",
+                  cursor: "pointer",
+                  fontSize: 18,
+                  lineHeight: 1,
+                }}
+              >
+                ›
+              </button>
+            </div>
+          )}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              opacity: sidePanelOpen ? 1 : 0,
+              transition: reduceMotion
+                ? "none"
+                : `opacity ${PANEL_CONTENT_FADE_MS}ms ease`,
+              pointerEvents: sidePanelOpen ? "auto" : "none",
+            }}
+          >
+            <SidePanel
+              onSpriteConfirm={handleSpriteConfirm}
+              isSpawning={isSpawning}
+            />
+          </div>
+        </aside>
       )}
 
-      {/* Backdrop overlay for mobile */}
-      {isPanelOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setIsPanelOpen(false)}
-        />
-      )}
-
-      {/* Side Panel — fixed width when open, fills height, no scroll */}
-      <div
-        className={`flex-shrink-0 h-full z-40 transition-[transform,width] duration-300 ease-in-out ${
-          isPanelOpen
-            ? "w-full md:w-80 translate-x-0"
-            : "w-0 -translate-x-full md:translate-x-0 overflow-hidden"
-        }`}
-      >
-        <SidePanel
-          onSpriteConfirm={handleSpriteConfirm}
-          isSpawning={isSpawning}
-        />
-      </div>
-
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsPanelOpen(!isPanelOpen)}
-        className={`fixed top-4 z-50 bg-neutral-800 hover:bg-neutral-700 text-white p-2 rounded-lg border border-neutral-700 transition-all duration-300 shadow-lg ${
-          isPanelOpen ? "left-[calc(100%-3.5rem)] md:left-[21rem]" : "left-4"
-        }`}
-        aria-label={isPanelOpen ? "Close panel" : "Open panel"}
-      >
-        {isPanelOpen ? (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        <main
+          className={`flex-1 min-h-0 min-w-0 flex flex-col items-center px-4 md:px-8 overflow-hidden ${
+            isLegacyIndexView
+              ? "justify-center py-2 md:py-3"
+              : "justify-start pt-6 md:pt-8 pb-2 md:pb-4 overflow-y-auto overflow-x-hidden"
+          }`}
+        >
+          {!isLegacyIndexView && (
+            <header className="flex-shrink-0 text-center mb-3 md:mb-4">
+              <h1 className="text-xl text-neutral-400 font-bold font-google-sans-code tracking-widest uppercase">
+                Block Party
+              </h1>
+              <p className="text-xs text-neutral-500 font-google-sans-code mt-0.5">
+                Upload an image to create a sprite and join the party!
+              </p>
+              <p className="mt-2 font-google-sans-code">
+                <ResetSavedCreationsButton />
+              </p>
+            </header>
+          )}
+          <div
+            ref={mapRowRef}
+            className={`flex-1 min-h-0 w-full min-w-0 max-w-full flex items-center ${
+              isLegacyIndexView ? "justify-center" : "justify-start"
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        ) : (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-        )}
-      </button>
-
-      {/* Main Content */}
-      <div
-        className={`flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden transition-all duration-300 ${
-          isPanelOpen ? "hidden md:flex" : "flex"
-        }`}
-      >
-        <main className="flex-1 min-h-0 min-w-0 flex flex-col items-center justify-start pt-6 md:pt-8 pb-2 md:pb-4 px-4 md:px-8 overflow-y-auto overflow-x-hidden">
-          <header className="flex-shrink-0 text-center mb-3 md:mb-4">
-            <h1 className="text-xl text-neutral-400 font-bold font-google-sans-code tracking-widest uppercase">
-              Block Party
-            </h1>
-            <p className="text-xs text-neutral-500 font-google-sans-code mt-0.5">
-              Upload an image to create a sprite and join the party!
-            </p>
-          </header>
-          <div className="flex-1 min-h-0 w-full min-w-0 max-w-full flex items-center justify-start">
-            {/* Map: fixed GAME_WIDTH×GAME_HEIGHT, scale down uniformly when viewport is narrow */}
             <div
               className="rounded-xl overflow-hidden border-4 border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] bg-black relative flex-shrink-0 mx-2 md:mx-4 max-w-[calc(100%-1rem)] md:max-w-[calc(100%-2rem)]"
               style={{

@@ -1,3 +1,9 @@
+/** Left tools panel: shared by /map and index home (App). */
+export const SIDE_PANEL_EXPAND_W = 44;
+export const PANEL_WIDTH_MS = 360;
+export const PANEL_WIDTH_EASING = "cubic-bezier(0.32, 0.72, 0.22, 1)";
+export const PANEL_CONTENT_FADE_MS = 220;
+
 // Internal resolution (Retro style, scaled up for crispness)
 export const SCALE = 3;
 export const GAME_WIDTH = 480 * SCALE; // 1440

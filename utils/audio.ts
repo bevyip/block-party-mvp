@@ -4,11 +4,27 @@ let audioCtx: AudioContext | null = null;
 /** When true, all sounds except voxel preview are muted. Set by VoxelRevealOverlay. */
 let voxelPreviewActive = false;
 
+/** When true, map/eating sounds are muted so only sprite-loading.mp3 plays. Set by AddToPartyOverlay. */
+let spritePartyOverlayActive = false;
+
 export const setVoxelPreviewActive = (active: boolean) => {
   voxelPreviewActive = active;
 };
 
 export const isVoxelPreviewActive = () => voxelPreviewActive;
+
+export const setSpritePartyOverlayActive = (active: boolean) => {
+  spritePartyOverlayActive = active;
+};
+
+function suppressMapAudio(): boolean {
+  return voxelPreviewActive || spritePartyOverlayActive;
+}
+
+/** Map spawn, eating, chirps — muted during voxel preview or sprite-add overlay. */
+export function isMapAmbientAudioSuppressed(): boolean {
+  return suppressMapAudio();
+}
 
 const getAudioContext = () => {
   if (!audioCtx) {
@@ -20,7 +36,7 @@ const getAudioContext = () => {
 };
 
 export const playBlip = (pitch: number = 1.0) => {
-  if (voxelPreviewActive) return;
+  if (suppressMapAudio()) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {
@@ -57,7 +73,7 @@ export const playBlip = (pitch: number = 1.0) => {
 };
 
 export const playChirp = () => {
-  if (voxelPreviewActive) return;
+  if (suppressMapAudio()) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {
@@ -112,9 +128,9 @@ export const playSpawn = () => {
     osc.frequency.setValueAtTime(260, t0 + SPAWN_DURATION * 0.5);
     osc.frequency.exponentialRampToValueAtTime(180, t0 + SPAWN_DURATION);
 
-    gain.gain.setValueAtTime(0.28, t0);
-    gain.gain.linearRampToValueAtTime(0.12, t0 + SPAWN_DURATION * 0.4);
-    gain.gain.setValueAtTime(0.12, t0 + SPAWN_DURATION * 0.4);
+    gain.gain.setValueAtTime(0.22, t0);
+    gain.gain.linearRampToValueAtTime(0.095, t0 + SPAWN_DURATION * 0.4);
+    gain.gain.setValueAtTime(0.095, t0 + SPAWN_DURATION * 0.4);
     gain.gain.exponentialRampToValueAtTime(0.01, t0 + SPAWN_DURATION);
 
     osc.connect(gain);
@@ -122,6 +138,18 @@ export const playSpawn = () => {
 
     osc.start();
     osc.stop(t0 + SPAWN_DURATION);
+  } catch (e) {
+    console.warn("Audio play failed", e);
+  }
+};
+
+/** Legacy apple reaction sound used by the map engine. */
+export const playEatingSound = () => {
+  if (suppressMapAudio()) return;
+  try {
+    const audio = new Audio("/sounds/eating.mp3");
+    audio.volume = 0.1;
+    audio.play().catch(() => {});
   } catch (e) {
     console.warn("Audio play failed", e);
   }

@@ -33,13 +33,13 @@ import {
   playBlip,
   playChirp,
   playSpawn,
-  isVoxelPreviewActive,
+  isMapAmbientAudioSuppressed,
 } from "../utils/audio.js";
 
 const playEatingSound = () => {
-  if (isVoxelPreviewActive()) return;
+  if (isMapAmbientAudioSuppressed()) return;
   const audio = new Audio("/sounds/eating.mp3");
-  audio.volume = 0.4;
+  audio.volume = 0.1;
   audio.play().catch(() => {});
 };
 
@@ -248,9 +248,9 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
         const spriteHeight = spriteResult.dimensions.height * SCALE;
         const spriteWidth = spriteResult.dimensions.width * SCALE;
         const halfH = (spriteResult.dimensions.height * SCALE) / 2;
-        const moveRight = Math.random() >= 0.5;
-        const MOVEMENT_SPEED = 0.25 * SCALE;
-        const spawnDelay = 60 * (1 + Math.random());
+        // For the "Add to Party" experience: drop in from above, then idle-facing-front for ~10s.
+        // (Game logic uses frame-based timers; assume ~60fps.)
+        const spawnDelay = 60 * 10;
 
         const customSprite: Sprite = {
           id: nextSpriteIdRef.current++,
@@ -263,7 +263,7 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
           pantsColor: "#888",
           skinTone: "#888",
           interactionCooldown: Math.random() * 200,
-          facing: moveRight ? "right" : "left",
+          facing: "front",
           bobOffset: Math.random() * Math.PI * 2,
           state: "idle",
           stateTimer: spawnDelay,
@@ -273,8 +273,6 @@ export const GameCanvas = forwardRef<GameCanvasRef, GameCanvasProps>(
             dimensions: spriteResult.dimensions,
           },
         };
-        (customSprite as any)._spawnDirection = moveRight ? "right" : "left";
-        (customSprite as any)._spawnSpeed = MOVEMENT_SPEED;
 
         const isPositionValid = (spriteX: number, spriteY: number): boolean => {
           const box = {

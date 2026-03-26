@@ -2,6 +2,15 @@
   "devCommand": "vite",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/archive", "destination": "/legacy.html" },
+    { "source": "/archive/", "destination": "/legacy.html" },
+    { "source": "/pipeline", "destination": "/pipeline.html" },
+    { "source": "/pipeline/", "destination": "/pipeline.html" },
+    { "source": "/map", "destination": "/index.html" },
+    { "source": "/map/", "destination": "/index.html" },
+    { "source": "/legacy", "destination": "/legacy.html" },
+    { "source": "/legacy/", "destination": "/legacy.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
