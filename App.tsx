@@ -52,7 +52,12 @@ export default function App() {
     pathname === "/archive" ||
     pathname === "/archive/";
   const showSidePanel =
-    pathname === "/" || pathname === "/map" || pathname === "/map.html";
+    pathname === "/" ||
+    pathname === "/map" ||
+    pathname === "/map.html" ||
+    pathname === "/admin" ||
+    pathname === "/admin/";
+  const showClearButton = pathname === "/admin" || pathname === "/admin/";
 
   useEffect(() => {
     const mql = window.matchMedia(
@@ -263,7 +268,7 @@ export default function App() {
                 Upload an image to create a sprite and join the party!
               </p>
               <p className="mt-2 font-google-sans-code">
-                <ResetSavedCreationsButton />
+                <ResetSavedCreationsButton showClearButton={showClearButton} />
               </p>
             </header>
           )}

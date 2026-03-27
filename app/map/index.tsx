@@ -178,6 +178,9 @@ function updateMapHouseState(
 
 export default function MapPage() {
   const reduceMotion = usePrefersReducedMotion();
+  const pathname =
+    typeof window !== "undefined" ? window.location.pathname : "/";
+  const showClearButton = pathname === "/admin" || pathname === "/admin/";
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   /** Persist creation metadata; live sprite also injects optimistically then confirms after save. */
   const handleSpriteConfirmFromMap = useCallback((sprite: SpriteResult) => {
@@ -539,7 +542,10 @@ export default function MapPage() {
         }}
       >
         <div className="pointer-events-none absolute right-3 top-3 z-10 font-google-sans-code">
-          <ResetSavedCreationsButton className="pointer-events-auto rounded-md border border-neutral-700 bg-neutral-900/70 px-2 py-1 text-[11px] text-neutral-300 shadow-lg transition-colors hover:bg-neutral-900/90 hover:text-white" />
+          <ResetSavedCreationsButton
+            className="pointer-events-auto rounded-md border border-neutral-700 bg-neutral-900/70 px-2 py-1 text-[11px] text-neutral-300 shadow-lg transition-colors hover:bg-neutral-900/90 hover:text-white"
+            showClearButton={showClearButton}
+          />
         </div>
         <div
           style={{

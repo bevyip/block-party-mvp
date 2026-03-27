@@ -7,6 +7,7 @@ const DOCS_URL =
 type Props = {
   className?: string;
   label?: string;
+  showClearButton?: boolean;
 };
 
 /**
@@ -16,6 +17,7 @@ type Props = {
 export function ResetSavedCreationsButton({
   className = "text-[11px] text-neutral-500 hover:text-neutral-300 underline-offset-2 hover:underline",
   label = "CLEAR",
+  showClearButton = true,
 }: Props) {
   const onDocsClick = useCallback(() => {
     window.open(DOCS_URL, "_blank", "noopener,noreferrer");
@@ -47,14 +49,16 @@ export function ResetSavedCreationsButton({
       >
         ?
       </button>
-      <button
-        type="button"
-        title="Clear All Creations"
-        className={`${className} inline-flex cursor-pointer items-center rounded px-2 py-1`}
-        onClick={onClick}
-      >
-        {label}
-      </button>
+      {showClearButton && (
+        <button
+          type="button"
+          title="Clear All Creations"
+          className={`${className} inline-flex cursor-pointer items-center rounded px-2 py-1`}
+          onClick={onClick}
+        >
+          {label}
+        </button>
+      )}
     </div>
   );
 }

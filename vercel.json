@@ -9,6 +9,8 @@
     { "source": "/pipeline/", "destination": "/pipeline.html" },
     { "source": "/map", "destination": "/index.html" },
     { "source": "/map/", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/admin/", "destination": "/index.html" },
     { "source": "/legacy", "destination": "/legacy.html" },
     { "source": "/legacy/", "destination": "/legacy.html" },
     { "source": "/(.*)", "destination": "/index.html" }

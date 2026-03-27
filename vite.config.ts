@@ -20,6 +20,8 @@ export default defineConfig({
             req.url = "/pipeline.html";
           } else if (url === "/map" || url === "/map/") {
             req.url = "/index.html";
+          } else if (url === "/admin" || url === "/admin/") {
+            req.url = "/index.html";
           }
           next();
         });
