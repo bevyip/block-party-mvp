@@ -5,7 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import SidePanel from "../../components/SidePanel";
+import SidePanel, { type SidePanelHandle } from "../../components/SidePanel";
+import { AddToPartyOverlay } from "../../components/AddToPartyOverlay";
 import { generateMap } from "../../lib/generateMap";
 import MapCanvas, { type MapCanvasHandle } from "./MapCanvas";
 import { DOOR_PHASE_DURATION, type HouseState } from "../../lib/houseState";
@@ -37,6 +38,7 @@ import {
   type SpriteResult,
 } from "../../types";
 import {
+  ADD_TO_PARTY_OVERLAY_ENTRANCE_MS,
   PANEL_CONTENT_FADE_MS,
   PANEL_WIDTH_EASING,
   PANEL_WIDTH_MS,
@@ -44,11 +46,24 @@ import {
 } from "../../constants";
 import { ResetSavedCreationsButton } from "../../components/ResetSavedCreationsButton";
 import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
+import MapOverlay from "../../components/MapOverlay";
+import {
+  startBackgroundMapMusic,
+  stopBackgroundMapMusic,
+} from "../../utils/audio";
+import {
+  useMapChannel,
+  type PipelineStage,
+} from "../../hooks/usePipelineChannel";
 
 const MAP_NATURAL_WIDTH = MAP_COLS * TILE_SIZE;
 const MAP_NATURAL_HEIGHT = MAP_ROWS * TILE_SIZE;
 
 const VIEW_BG = "#1e1e1e";
+
+/** `/map` tab: world map emoji favicon (restored when leaving map-only route). */
+const MAP_TAB_FAVICON_DATA_URL =
+  "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>";
 const DOOR_CENTER_X = HOUSE_COL * TILE_SIZE + TILE_SIZE * 1.5;
 const DOOR_CENTER_Y = HOUSE_ROW * TILE_SIZE + TILE_SIZE * 1.8;
 const DOOR_TRIGGER_RADIUS_X = TILE_SIZE * 0.52;
@@ -176,12 +191,62 @@ function updateMapHouseState(
   }
 }
 
+function pathWithoutTrailingSlash(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
+
 export default function MapPage() {
   const reduceMotion = usePrefersReducedMotion();
-  const pathname =
-    typeof window !== "undefined" ? window.location.pathname : "/";
-  const showClearButton = pathname === "/admin" || pathname === "/admin/";
+  const [pathname, setPathname] = useState(() =>
+    typeof window !== "undefined" ? window.location.pathname : "/",
+  );
+  const pathNorm = pathWithoutTrailingSlash(pathname) || "/";
+  /** `/map` is embed-style: full viewport map only (no tools, no docs/CLEAR chip). */
+  const isMapOnlyView = pathNorm === "/map" || pathNorm === "/map.html";
+  const showClearButton = pathNorm === "/admin";
+
+  useLayoutEffect(() => {
+    if (!isMapOnlyView) return;
+    const prevTitle = document.title;
+    document.title = "Map";
+    const iconLink =
+      document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const prevIconHref = iconLink?.href ?? "";
+    if (iconLink) iconLink.href = MAP_TAB_FAVICON_DATA_URL;
+    return () => {
+      document.title = prevTitle;
+      if (iconLink) iconLink.href = prevIconHref;
+    };
+  }, [isMapOnlyView]);
+
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  /** Add-to-Party preview lives here so `position: fixed` is not clipped by the aside. */
+  const [addToPartyUrl, setAddToPartyUrl] = useState<string | null>(null);
+  const [addToPartyEntranceVisible, setAddToPartyEntranceVisible] =
+    useState(false);
+  const sidePanelRef = useRef<SidePanelHandle>(null);
+
+  useEffect(() => {
+    if (!addToPartyUrl) {
+      setAddToPartyEntranceVisible(false);
+      return;
+    }
+    if (reduceMotion) {
+      setAddToPartyEntranceVisible(true);
+      return;
+    }
+    setAddToPartyEntranceVisible(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setAddToPartyEntranceVisible(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [addToPartyUrl, reduceMotion]);
+
   /** Persist creation metadata; live sprite also injects optimistically then confirms after save. */
   const handleSpriteConfirmFromMap = useCallback((sprite: SpriteResult) => {
     try {
@@ -201,6 +266,17 @@ export default function MapPage() {
     width: 0,
     height: 0,
   });
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    startBackgroundMapMusic();
+    return () => stopBackgroundMapMusic();
+  }, []);
 
   useEffect(() => {
     const prevBody = document.body.style.overflow;
@@ -255,19 +331,36 @@ export default function MapPage() {
           ...(prev ?? {}),
           ...Object.fromEntries(pairs),
         }));
+        const newSprite = createGeneratedSprite(
+          entry,
+          grid,
+          spritesRef.current,
+        );
+        spritesRef.current = [...spritesRef.current, newSprite];
       }
-      const newSprite = createGeneratedSprite(entry, grid, spritesRef.current);
-      spritesRef.current = [...spritesRef.current, newSprite];
     },
     [grid],
   );
+
+  const handleAddToPartyComplete = useCallback(() => {
+    sidePanelRef.current?.runFinishAddToPartyAfterOverlay();
+    setAddToPartyUrl(null);
+  }, []);
+
+  const handleAddToPartyAbort = useCallback(() => {
+    setAddToPartyUrl(null);
+    sidePanelRef.current?.runAbortAddToPartyOverlayFromMap();
+  }, []);
 
   const handleGeneratedSpriteSaved = useCallback(
     async (entry: GeneratedSpriteEntry) => {
       const urls = collectGeneratedSpriteImageUrls([entry]);
       try {
         const pairs = await Promise.all(urls.map((u) => loadImage(u)));
-        setImageCache((prev) => ({ ...(prev ?? {}), ...Object.fromEntries(pairs) }));
+        setImageCache((prev) => ({
+          ...(prev ?? {}),
+          ...Object.fromEntries(pairs),
+        }));
       } catch {
         // Keep going so sprite still enters live state; missing images simply won't render.
       }
@@ -279,9 +372,7 @@ export default function MapPage() {
 
   const onGeneratedSpriteSavedAfterOptimistic = useCallback(
     async (entry: GeneratedSpriteEntry) => {
-      if (
-        spritesRef.current.some((s) => s.id === `generated_${entry.id}`)
-      ) {
+      if (spritesRef.current.some((s) => s.id === `generated_${entry.id}`)) {
         const urls = collectGeneratedSpriteImageUrls([entry]);
         try {
           const pairs = await Promise.all(urls.map((u) => loadImage(u)));
@@ -299,6 +390,101 @@ export default function MapPage() {
     [handleGeneratedSpriteSaved],
   );
 
+  /** After first successful manifest hydration, further loads only append new `entry.id`s. */
+  const manifestHydratedRef = useRef(false);
+  const manifestLoadChainRef = useRef(Promise.resolve());
+  const mapSurfaceMountedRef = useRef(true);
+  useEffect(() => {
+    mapSurfaceMountedRef.current = true;
+    return () => {
+      mapSurfaceMountedRef.current = false;
+    };
+  }, []);
+
+  const loadAndInjectGeneratedSprites = useCallback(() => {
+    const op = async () => {
+      let entries: GeneratedSpriteEntry[] = [];
+      try {
+        const manifest = await fetchGeneratedManifest();
+        entries = manifest.sprites ?? [];
+
+        if (!manifestHydratedRef.current) {
+          const genUrls = collectGeneratedSpriteImageUrls(entries);
+          const urls = [
+            ...new Set([
+              ...collectMapImageUrls(grid),
+              ...collectSpriteImageUrls(),
+              ...genUrls,
+            ]),
+          ];
+          const results = await Promise.allSettled(
+            urls.map((u) => loadImage(u)),
+          );
+          const pairs: [string, HTMLImageElement][] = [];
+          for (let i = 0; i < results.length; i++) {
+            const r = results[i]!;
+            if (r.status === "fulfilled") pairs.push(r.value);
+          }
+          if (!mapSurfaceMountedRef.current) return;
+          const baseSprites = initSprites(grid, SPAWN_POINT, entries);
+          const manifestIds = new Set(entries.map((e) => e.id));
+          const orphanGenerated = spritesRef.current.filter(
+            (s) =>
+              s.isGenerated &&
+              s.id.startsWith("generated_") &&
+              !manifestIds.has(s.id.slice("generated_".length)),
+          );
+          spritesRef.current = [...baseSprites, ...orphanGenerated];
+          setImageCache((prev) => ({
+            ...(prev ?? {}),
+            ...Object.fromEntries(pairs),
+          }));
+          manifestHydratedRef.current = true;
+          return;
+        }
+
+        const existingIds = new Set(
+          spritesRef.current
+            .filter((s) => s.isGenerated && s.id.startsWith("generated_"))
+            .map((s) => s.id.slice("generated_".length)),
+        );
+        const newEntries = entries.filter((e) => !existingIds.has(e.id));
+        if (newEntries.length === 0) return;
+
+        if (!mapSurfaceMountedRef.current) return;
+        for (const entry of newEntries) {
+          await handleGeneratedSpriteSaved(entry);
+        }
+      } catch {
+        if (!manifestHydratedRef.current) {
+          if (!mapSurfaceMountedRef.current) return;
+          spritesRef.current = initSprites(grid, SPAWN_POINT, entries);
+          setImageCache({});
+          manifestHydratedRef.current = true;
+        }
+      }
+    };
+
+    manifestLoadChainRef.current = manifestLoadChainRef.current
+      .then(op)
+      .catch(() => {});
+    return manifestLoadChainRef.current;
+  }, [grid, handleGeneratedSpriteSaved]);
+
+  useEffect(() => {
+    void loadAndInjectGeneratedSprites();
+  }, [loadAndInjectGeneratedSprites]);
+
+  useMapChannel(
+    useCallback(
+      (event: PipelineStage) => {
+        if (event.stage !== "sprite_sent") return;
+        void loadAndInjectGeneratedSprites();
+      },
+      [loadAndInjectGeneratedSprites],
+    ),
+  );
+
   useLayoutEffect(() => {
     if (!imageCache) return;
     const el = mapAreaRef.current;
@@ -314,46 +500,6 @@ export default function MapPage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [imageCache]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      let entries: GeneratedSpriteEntry[] = [];
-      try {
-        const manifest = await fetchGeneratedManifest();
-        entries = manifest.sprites ?? [];
-        const genUrls = collectGeneratedSpriteImageUrls(entries);
-        const urls = [
-          ...new Set([
-            ...collectMapImageUrls(grid),
-            ...collectSpriteImageUrls(),
-            ...genUrls,
-          ]),
-        ];
-        // allSettled: one missing/broken asset must not skip manifest sprites or wipe spritesRef.
-        const results = await Promise.allSettled(
-          urls.map((u) => loadImage(u)),
-        );
-        const pairs: [string, HTMLImageElement][] = [];
-        for (let i = 0; i < results.length; i++) {
-          const r = results[i]!;
-          if (r.status === "fulfilled") pairs.push(r.value);
-        }
-        if (cancelled) return;
-        spritesRef.current = initSprites(grid, SPAWN_POINT, entries);
-        setImageCache(Object.fromEntries(pairs));
-      } catch {
-        if (!cancelled) {
-          spritesRef.current = initSprites(grid, SPAWN_POINT, entries);
-          setImageCache({});
-        }
-      }
-    }
-    void init();
-    return () => {
-      cancelled = true;
-    };
-  }, [grid]);
 
   useEffect(() => {
     if (!imageCache) return;
@@ -406,161 +552,199 @@ export default function MapPage() {
   const offsetX = (fitW - scaledWidth) / 2;
   const offsetY = (fitH - scaledHeight) / 2;
 
-  if (!imageCache) {
-    return (
-      <div
-        className="font-google-sans-code text-neutral-200"
-        style={{
-          position: "fixed",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: VIEW_BG,
-          overflow: "hidden",
-        }}
-      >
-        Loading map…
-      </div>
-    );
-  }
-
+  /**
+   * Keep a single `MapOverlay` mounted across the imageCache transition. Previously
+   * two branches each mounted their own instance; unmounting when assets finished
+   * cleared the add-to-party splay timer and dropped `handoffSplayExitActive`, so
+   * `add_to_party_splay_complete` could fire without SidePanel ever having run begin.
+   */
   return (
-    <div
-      data-house-phase={houseState.phase}
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "stretch",
-        backgroundColor: VIEW_BG,
-        overflow: "hidden",
-      }}
-    >
-      <aside
-        aria-label="Map tools panel"
-        aria-expanded={sidePanelOpen}
-        className="font-google-sans-code"
-        style={{
-          width: sidePanelOpen
-            ? "clamp(180px, 28vw, 320px)"
-            : SIDE_PANEL_EXPAND_W,
-          transition: reduceMotion
-            ? "none"
-            : `width ${PANEL_WIDTH_MS}ms ${PANEL_WIDTH_EASING}`,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          minHeight: 0,
-          backgroundColor: "#252525",
-          borderRight: "1px solid #333",
-          overflow: "hidden",
-          boxSizing: "border-box",
-        }}
-      >
-        {sidePanelOpen ? (
-          <div className="box-border flex w-full shrink-0 items-center justify-between gap-3 px-3 pt-3 pb-3">
-            <h2 className="font-google-sans-code min-w-0 flex-1 text-left text-xl font-semibold leading-tight tracking-wide text-neutral-100">
-              Block Party
-            </h2>
-            <button
-              type="button"
-              onClick={() => setSidePanelOpen(false)}
-              aria-label="Collapse side panel"
-              className="shrink-0 font-google-sans-code"
-              style={{
-                width: 36,
-                height: 36,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px solid #444",
-                borderRadius: 6,
-                background: "#1a1a1a",
-                color: "#e5e5e5",
-                cursor: "pointer",
-                fontSize: 20,
-                lineHeight: 1,
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ) : (
-          <div className="box-border flex min-h-[44px] w-full shrink-0 items-center justify-center px-0 py-2">
-            <button
-              type="button"
-              onClick={() => setSidePanelOpen(true)}
-              aria-label="Expand side panel"
-              className="font-google-sans-code"
-              style={{
-                width: 36,
-                height: 36,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px solid #444",
-                borderRadius: 6,
-                background: "#1a1a1a",
-                color: "#e5e5e5",
-                cursor: "pointer",
-                fontSize: 18,
-                lineHeight: 1,
-              }}
-            >
-              ›
-            </button>
-          </div>
-        )}
+    <>
+      <MapOverlay
+        ownsHandoff={isMapOnlyView}
+        onSpriteAdded={loadAndInjectGeneratedSprites}
+      />
+      {addToPartyUrl && !isMapOnlyView && (
         <div
-          className="font-google-sans-code min-h-0 flex-1 overflow-hidden overflow-y-auto text-neutral-200"
           style={{
-            opacity: sidePanelOpen ? 1 : 0,
+            position: "fixed",
+            inset: 0,
+            zIndex: 10050,
+            opacity: addToPartyEntranceVisible ? 1 : 0,
             transition: reduceMotion
               ? "none"
-              : `opacity ${PANEL_CONTENT_FADE_MS}ms ease`,
-            pointerEvents: sidePanelOpen ? "auto" : "none",
+              : `opacity ${ADD_TO_PARTY_OVERLAY_ENTRANCE_MS}ms ease-out`,
+            pointerEvents: "auto",
           }}
         >
-          <SidePanel
-            onSpriteConfirm={handleSpriteConfirmFromMap}
-            isSpawning={false}
-            injectSpriteOptimistically={injectSpriteOptimistically}
-            onGeneratedSpriteSaved={onGeneratedSpriteSavedAfterOptimistic}
+          <AddToPartyOverlay
+            stage3aUrl={addToPartyUrl}
+            onComplete={handleAddToPartyComplete}
+            onAbort={handleAddToPartyAbort}
           />
         </div>
-      </aside>
-      <div
-        ref={mapAreaRef}
-        style={{
-          flex: 1,
-          minWidth: 0,
-          minHeight: 0,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div className="pointer-events-none absolute right-3 top-3 z-10 font-google-sans-code">
-          <ResetSavedCreationsButton
-            className="pointer-events-auto rounded-md border border-neutral-700 bg-neutral-900/70 px-2 py-1 text-[11px] text-neutral-300 shadow-lg transition-colors hover:bg-neutral-900/90 hover:text-white"
-            showClearButton={showClearButton}
-          />
-        </div>
+      )}
+      {!imageCache ? (
         <div
+          className="font-google-sans-code text-neutral-200"
           style={{
-            position: "absolute",
-            left: offsetX,
-            top: offsetY,
-            width: MAP_NATURAL_WIDTH,
-            height: MAP_NATURAL_HEIGHT,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: VIEW_BG,
+            overflow: "hidden",
           }}
         >
-          <MapCanvas ref={canvasRef} grid={grid} imageCache={imageCache} />
+          Loading map…
         </div>
-      </div>
-    </div>
+      ) : (
+        <div
+          data-house-phase={houseState.phase}
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "stretch",
+            backgroundColor: VIEW_BG,
+            overflow: "hidden",
+          }}
+        >
+          {!isMapOnlyView && (
+            <aside
+              aria-label="Map tools panel"
+              aria-expanded={sidePanelOpen}
+              className="font-google-sans-code"
+              style={{
+                width: sidePanelOpen
+                  ? "clamp(180px, 28vw, 320px)"
+                  : SIDE_PANEL_EXPAND_W,
+                transition: reduceMotion
+                  ? "none"
+                  : `width ${PANEL_WIDTH_MS}ms ${PANEL_WIDTH_EASING}`,
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+                backgroundColor: "#252525",
+                borderRight: "1px solid #333",
+                overflow: "hidden",
+                boxSizing: "border-box",
+              }}
+            >
+              {sidePanelOpen ? (
+                <div className="box-border flex w-full shrink-0 items-center justify-between gap-3 px-3 pt-3 pb-3">
+                  <h2 className="font-google-sans-code min-w-0 flex-1 text-left text-xl font-semibold leading-tight tracking-wide text-neutral-100">
+                    Block Party
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setSidePanelOpen(false)}
+                    aria-label="Collapse side panel"
+                    className="shrink-0 font-google-sans-code"
+                    style={{
+                      width: 36,
+                      height: 36,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px solid #444",
+                      borderRadius: 6,
+                      background: "#1a1a1a",
+                      color: "#e5e5e5",
+                      cursor: "pointer",
+                      fontSize: 20,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <div className="box-border flex min-h-[44px] w-full shrink-0 items-center justify-center px-0 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setSidePanelOpen(true)}
+                    aria-label="Expand side panel"
+                    className="font-google-sans-code"
+                    style={{
+                      width: 36,
+                      height: 36,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px solid #444",
+                      borderRadius: 6,
+                      background: "#1a1a1a",
+                      color: "#e5e5e5",
+                      cursor: "pointer",
+                      fontSize: 18,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+              <div
+                className="font-google-sans-code min-h-0 flex-1 overflow-hidden overflow-y-auto text-neutral-200"
+                style={{
+                  opacity: sidePanelOpen ? 1 : 0,
+                  transition: reduceMotion
+                    ? "none"
+                    : `opacity ${PANEL_CONTENT_FADE_MS}ms ease`,
+                  pointerEvents: sidePanelOpen ? "auto" : "none",
+                }}
+              >
+                <SidePanel
+                  ref={sidePanelRef}
+                  isMapOnly={isMapOnlyView}
+                  onSpriteConfirm={handleSpriteConfirmFromMap}
+                  isSpawning={false}
+                  injectSpriteOptimistically={injectSpriteOptimistically}
+                  onGeneratedSpriteSaved={onGeneratedSpriteSavedAfterOptimistic}
+                  onAddToPartyOverlayReady={setAddToPartyUrl}
+                  onAddToPartyOverlayDone={() => setAddToPartyUrl(null)}
+                />
+              </div>
+            </aside>
+          )}
+          <div
+            ref={mapAreaRef}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            {!isMapOnlyView && (
+              <div className="pointer-events-none absolute right-3 top-3 z-10 font-google-sans-code">
+                <ResetSavedCreationsButton
+                  className="pointer-events-auto rounded-md border border-neutral-700 bg-neutral-900/70 px-2 py-1 text-[11px] text-neutral-300 shadow-lg transition-colors hover:bg-neutral-900/90 hover:text-white"
+                  showClearButton={showClearButton}
+                />
+              </div>
+            )}
+            <div
+              style={{
+                position: "absolute",
+                left: offsetX,
+                top: offsetY,
+                width: MAP_NATURAL_WIDTH,
+                height: MAP_NATURAL_HEIGHT,
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <MapCanvas ref={canvasRef} grid={grid} imageCache={imageCache} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

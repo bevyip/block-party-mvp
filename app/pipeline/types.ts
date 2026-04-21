@@ -30,4 +30,9 @@ export type DesignBrief = {
   shoes: { color: string; description: string };
   theme_summary: string;
   theme_elements: string[];
+  /**
+   * Exactly eight short visual phrases for map speech bubbles — from the brief
+   * model (normalized on the server). Optional on older stored briefs.
+   */
+  speech_tease_phrases?: string[];
 };

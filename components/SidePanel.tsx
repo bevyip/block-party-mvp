@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import type {
   AnimState,
   DesignBrief,
@@ -12,8 +19,13 @@ import { SpriteResult, ProcessingStatus } from "../types";
 import { generateStage3AImage } from "../lib/pipelineStage3A";
 import { removeBackground } from "../lib/removeBackground";
 import { fileToBase64 } from "../utils/imageUtils.js";
-import { setPreviewButtonVisible } from "../utils/litebrite/boardCropper";
-import { AddToPartyOverlay } from "./AddToPartyOverlay";
+import { ADD_TO_PARTY_PREFACE_MS } from "../constants";
+import {
+  broadcast,
+  useMapChannel,
+  type PipelineStage,
+} from "../hooks/usePipelineChannel";
+import { useChamberDrivenAddToParty } from "../hooks/useChamberDrivenAddToParty";
 import { ColorChip } from "./ColorChip";
 import { InterpretationDisplay } from "./InterpretationDisplay";
 import { PipelineInputSection } from "./PipelineInputSection";
@@ -64,13 +76,32 @@ async function fetchInterpretationSafe(
 interface SidePanelProps {
   onSpriteConfirm: (sprite: SpriteResult) => void;
   isSpawning: boolean;
+  /**
+   * True on `/map` embed: same JS bundle may run without mounting this panel; when mounted
+   * with true, ignore `add_to_party_splay_complete` so only `/` SidePanel opens the overlay.
+   */
+  isMapOnly?: boolean;
   /** Map page only: inject live sprite from in-memory sheet URLs before save completes. */
   injectSpriteOptimistically?: (
     entry: GeneratedSpriteEntry,
     stateUrls: Record<string, string>,
   ) => void | Promise<void>;
   onGeneratedSpriteSaved?: (entry: GeneratedSpriteEntry) => void;
+  /**
+   * Map page (`/`): render `AddToPartyOverlay` outside the panel so `position: fixed`
+   * is not clipped by the aside. Parent sets URL when ready; `onAddToPartyOverlayDone`
+   * clears parent state when the handoff ends or aborts.
+   */
+  onAddToPartyOverlayReady?: (url: string) => void;
+  onAddToPartyOverlayDone?: () => void;
 }
+
+export type SidePanelHandle = {
+  /** After map-level overlay unmounts — broadcasts, save, reset (Add to Party complete). */
+  runFinishAddToPartyAfterOverlay: () => void;
+  /** User aborted portrait prep — broadcast + unlock (parent already cleared overlay URL). */
+  runAbortAddToPartyOverlayFromMap: () => void;
+};
 
 type CollapsiblePanel =
   | "input"
@@ -198,12 +229,21 @@ async function stage3ABase64ToSpriteResult(
 
 const ANIM_STATE_ORDER: AnimState[] = ["idle", "walk", "custom"];
 
-const SidePanel: React.FC<SidePanelProps> = ({
-  onSpriteConfirm,
-  isSpawning,
-  injectSpriteOptimistically,
-  onGeneratedSpriteSaved,
-}) => {
+const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(function SidePanel(
+  {
+    onSpriteConfirm,
+    isSpawning,
+    isMapOnly = false,
+    injectSpriteOptimistically,
+    onGeneratedSpriteSaved,
+    onAddToPartyOverlayReady,
+    onAddToPartyOverlayDone,
+  },
+  ref,
+) {
+  const mapStage3aUrlRef = useRef<string | null>(null);
+  const isMapOnlyRef = useRef(false);
+  isMapOnlyRef.current = Boolean(isMapOnly);
   const [processingState, setProcessingState] = useState<ProcessingStatus>(
     ProcessingStatus.IDLE,
   );
@@ -249,7 +289,50 @@ const SidePanel: React.FC<SidePanelProps> = ({
   const [stage3aLoadingMessage, setStage3aLoadingMessage] = useState(
     STAGE3A_LOADING_MESSAGES[0],
   );
-  const [showAddToPartyOverlay, setShowAddToPartyOverlay] = useState(false);
+  /** True while the Add-to-Party preview is delegated to the map page (outside this panel). */
+  const [addToPartyViewOpen, setAddToPartyViewOpen] = useState(false);
+  const addToPartyOverlayStage3aUrlRef = useRef<string | null>(null);
+  const onAddToPartyOverlayReadyRef = useRef(onAddToPartyOverlayReady);
+  const onAddToPartyOverlayDoneRef = useRef(onAddToPartyOverlayDone);
+  useEffect(() => {
+    onAddToPartyOverlayReadyRef.current = onAddToPartyOverlayReady;
+  }, [onAddToPartyOverlayReady]);
+  useEffect(() => {
+    onAddToPartyOverlayDoneRef.current = onAddToPartyOverlayDone;
+  }, [onAddToPartyOverlayDone]);
+  /** After auto or manual add-to-party starts, ignore duplicate chamber-3 events until reset or count drops. */
+  const autoAddToPartyLockRef = useRef(false);
+  const resetChamberDrivenAddToPartyRef = useRef(() => {});
+
+  const spriteDataRef = useRef(spriteData);
+  const briefRef = useRef(brief);
+  const interpretationRef = useRef(interpretation);
+  const stage3aRawBase64Ref = useRef(stage3aRawBase64);
+  const stage3aPreviewUrlRef = useRef(stage3aPreviewUrl);
+  const animStateUrlsRef = useRef(animStateUrls);
+  const customSpecRef = useRef(customSpec);
+
+  useEffect(() => {
+    spriteDataRef.current = spriteData;
+  }, [spriteData]);
+  useEffect(() => {
+    briefRef.current = brief;
+  }, [brief]);
+  useEffect(() => {
+    interpretationRef.current = interpretation;
+  }, [interpretation]);
+  useEffect(() => {
+    stage3aRawBase64Ref.current = stage3aRawBase64;
+  }, [stage3aRawBase64]);
+  useEffect(() => {
+    stage3aPreviewUrlRef.current = stage3aPreviewUrl;
+  }, [stage3aPreviewUrl]);
+  useEffect(() => {
+    animStateUrlsRef.current = animStateUrls;
+  }, [animStateUrls]);
+  useEffect(() => {
+    customSpecRef.current = customSpec;
+  }, [customSpec]);
 
   useEffect(() => {
     const allDone = ANIM_STATE_ORDER.every((s) => animStatePhase[s] === "done");
@@ -281,8 +364,10 @@ const SidePanel: React.FC<SidePanelProps> = ({
     setAnimStatePhase(emptyAnimPhase());
     setAnimErrors({});
     setCustomSpec(null);
-    setShowAddToPartyOverlay(false);
-    setPreviewButtonVisible(false);
+    setAddToPartyViewOpen(false);
+    addToPartyOverlayStage3aUrlRef.current = null;
+    onAddToPartyOverlayDoneRef.current?.();
+    resetChamberDrivenAddToPartyRef.current();
     setInputPreviewUrl((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
@@ -562,70 +647,151 @@ const SidePanel: React.FC<SidePanelProps> = ({
     [handleFileProcess],
   );
 
+  const beginAddToPartyFromMap = useCallback(
+    (opts?: { skipSplayBroadcast?: boolean }) => {
+      const spriteData = spriteDataRef.current;
+      const brief = briefRef.current;
+      const interpretation = interpretationRef.current;
+      const stage3aRawBase64 = stage3aRawBase64Ref.current;
+      if (!spriteData || !brief || !interpretation || !stage3aRawBase64) {
+        return;
+      }
+      if (isSavingToMap || addToPartyViewOpen) {
+        return;
+      }
+      const preview = stage3aPreviewUrlRef.current?.trim();
+      const snapshot =
+        preview && preview.length > 0
+          ? preview
+          : `data:image/png;base64,${stage3aRawBase64}`;
+      addToPartyOverlayStage3aUrlRef.current = snapshot;
+
+      autoAddToPartyLockRef.current = true;
+      if (!opts?.skipSplayBroadcast) {
+        window.setTimeout(() => {
+          broadcast({ stage: "add_to_party_splay" });
+        }, ADD_TO_PARTY_PREFACE_MS);
+      }
+      // Overlay mounts when the map broadcasts `add_to_party_splay_complete`
+      // (chamber auto: `add_to_party_splay` is broadcast from MapOverlay after the same preface.)
+    },
+    [isSavingToMap, addToPartyViewOpen],
+  );
+
+  /** Map-only: stage3a URL from pipeline broadcast; overlay opens on `add_to_party_splay_complete`. */
+  useMapChannel(
+    useCallback((event: PipelineStage) => {
+      if (event.stage === "pipeline_started") {
+        mapStage3aUrlRef.current = null;
+        return;
+      }
+      if (event.stage === "stage3a_complete") {
+        mapStage3aUrlRef.current = event.payload.stage3aUrl;
+        return;
+      }
+      if (event.stage !== "add_to_party_splay_complete") return;
+      if (isMapOnlyRef.current) return;
+      const url =
+        addToPartyOverlayStage3aUrlRef.current ?? mapStage3aUrlRef.current;
+      if (!url) return;
+      addToPartyOverlayStage3aUrlRef.current = url;
+      setAddToPartyViewOpen(true);
+      onAddToPartyOverlayReadyRef.current?.(url);
+    }, []),
+  );
+
+  const abortAddToPartyOverlay = useCallback(() => {
+    broadcast({
+      stage: "add_to_party_overlay_complete",
+      payload: { skipPipelinePersist: true },
+    });
+    setAddToPartyViewOpen(false);
+    addToPartyOverlayStage3aUrlRef.current = null;
+    autoAddToPartyLockRef.current = false;
+    resetChamberDrivenAddToPartyRef.current();
+  }, []);
+
+  const { resetChamberDrivenAddToParty } = useChamberDrivenAddToParty({
+    addToPartyLockRef: autoAddToPartyLockRef,
+    stage3bReady,
+    canBeginAddToParty: Boolean(
+      spriteData && brief && interpretation && stage3aRawBase64,
+    ),
+    isAddToPartyBlocked: isSavingToMap || addToPartyViewOpen,
+    onBeginAddToParty: () =>
+      beginAddToPartyFromMap({ skipSplayBroadcast: true }),
+  });
+  resetChamberDrivenAddToPartyRef.current = resetChamberDrivenAddToParty;
+
   const finishAddToParty = useCallback(() => {
-    // Spawn after the cinematic overlay completes, then persist sheets server-side.
-    if (!spriteData || !brief || !interpretation || !stage3aRawBase64) return;
+    const spriteData = spriteDataRef.current;
+    const brief = briefRef.current;
+    const interpretation = interpretationRef.current;
+    const stage3aRawBase64 = stage3aRawBase64Ref.current;
+    const animStateUrls = animStateUrlsRef.current;
+    const customSpec = customSpecRef.current;
+
+    setAddToPartyViewOpen(false);
+
+    broadcast({
+      stage: "add_to_party_overlay_complete",
+      payload: { skipPipelinePersist: true },
+    });
+
+    if (!spriteData || !brief || !interpretation || !stage3aRawBase64) {
+      return;
+    }
     if (isSavingToMap) return;
 
-    setShowAddToPartyOverlay(false);
     setIsSavingToMap(true);
     setBuildError(null);
 
-    const pendingId =
-      Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const customName = customSpec?.stateName?.trim();
 
     const states: Record<string, string | null> = {
       idle: animStateUrls.idle ?? null,
       walk: animStateUrls.walk ?? null,
-    };
-    if (customSpec && animStateUrls.custom) {
-      states[customSpec.stateName] = animStateUrls.custom;
-    }
-
-    const customName = customSpec?.stateName?.trim();
-    const manifestStates: string[] = [
-      ...(animStateUrls.idle ? ["idle"] : []),
-      ...(animStateUrls.walk ? ["walk"] : []),
-      ...(customName && animStateUrls.custom ? [customName] : []),
-    ];
-
-    const pendingEntry: GeneratedSpriteEntry = {
-      id: pendingId,
-      createdAt: new Date().toISOString(),
-      object: interpretation.object,
-      gender: interpretation.gender,
-      themeSummary: brief.theme_summary,
-      themeEmoji: interpretation.theme_emoji,
-      states: manifestStates,
-      hasPortrait: true,
-      ...(customSpec
-        ? { customStateName: customSpec.stateName, customSpec }
+      ...(customSpec && animStateUrls.custom
+        ? { custom: animStateUrls.custom }
         : {}),
     };
 
-    const pendingStateUrls: Record<string, string> = {};
-    if (animStateUrls.idle) pendingStateUrls.idle = animStateUrls.idle;
-    if (animStateUrls.walk) pendingStateUrls.walk = animStateUrls.walk;
-    if (customName && animStateUrls.custom) {
-      pendingStateUrls[customName] = animStateUrls.custom;
-    }
+    const stateUrls: Record<string, string> = {};
+    if (animStateUrls.idle) stateUrls.idle = animStateUrls.idle;
+    if (animStateUrls.walk) stateUrls.walk = animStateUrls.walk;
+    if (customName && animStateUrls.custom)
+      stateUrls[customName] = animStateUrls.custom;
 
-    if (
-      injectSpriteOptimistically &&
-      Object.keys(pendingStateUrls).length > 0
-    ) {
-      void injectSpriteOptimistically(pendingEntry, pendingStateUrls);
-    }
+    const optimisticEntry: GeneratedSpriteEntry | null =
+      injectSpriteOptimistically && Object.keys(stateUrls).length > 0
+        ? {
+            id,
+            createdAt: new Date().toISOString(),
+            object: interpretation.object,
+            gender: interpretation.gender,
+            themeSummary: brief.theme_summary,
+            themeEmoji: interpretation.theme_emoji,
+            states: Object.keys(stateUrls),
+            hasPortrait: true,
+            ...(customSpec
+              ? { customStateName: customSpec.stateName, customSpec }
+              : {}),
+          }
+        : null;
 
     onSpriteConfirm(spriteData);
 
     void (async () => {
       try {
+        if (optimisticEntry && injectSpriteOptimistically) {
+          await injectSpriteOptimistically(optimisticEntry, stateUrls);
+        }
         const res = await fetch("/api/save-sprite", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: pendingId,
+            id,
             gender: interpretation.gender,
             object: interpretation.object,
             themeSummary: brief.theme_summary,
@@ -636,21 +802,20 @@ const SidePanel: React.FC<SidePanelProps> = ({
             ...(customSpec ? { customSpec } : {}),
           }),
         });
-
         const data = (await res.json()) as {
           error?: string;
           id?: string;
           savedStates?: string[];
         };
-        if (!res.ok) {
-          throw new Error(data.error || `HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        /** After disk + manifest are updated — map must not reload before save completes. */
+        broadcast({ stage: "sprite_sent" });
         if (
           data.id &&
           Array.isArray(data.savedStates) &&
           onGeneratedSpriteSaved
         ) {
-          const entry: GeneratedSpriteEntry = {
+          onGeneratedSpriteSaved({
             id: data.id,
             createdAt: new Date().toISOString(),
             object: interpretation.object,
@@ -662,24 +827,16 @@ const SidePanel: React.FC<SidePanelProps> = ({
             ...(customSpec
               ? { customStateName: customSpec.stateName, customSpec }
               : {}),
-          };
-          onGeneratedSpriteSaved(entry);
+          });
         }
       } catch (err: unknown) {
-        // eslint-disable-next-line no-console
-        console.error("Save to map failed:", err);
+        console.error("save-sprite failed:", err);
       } finally {
         setIsSavingToMap(false);
         resetPanel();
       }
     })();
   }, [
-    spriteData,
-    brief,
-    interpretation,
-    stage3aRawBase64,
-    animStateUrls,
-    customSpec,
     isSavingToMap,
     onSpriteConfirm,
     injectSpriteOptimistically,
@@ -687,18 +844,27 @@ const SidePanel: React.FC<SidePanelProps> = ({
     resetPanel,
   ]);
 
+  const finishAddToPartyImplRef = useRef(finishAddToParty);
+  finishAddToPartyImplRef.current = finishAddToParty;
+  const abortAddToPartyImplRef = useRef(abortAddToPartyOverlay);
+  abortAddToPartyImplRef.current = abortAddToPartyOverlay;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      runFinishAddToPartyAfterOverlay: () => {
+        finishAddToPartyImplRef.current();
+      },
+      runAbortAddToPartyOverlayFromMap: () => {
+        abortAddToPartyImplRef.current();
+      },
+    }),
+    [],
+  );
+
   const handleConfirm = useCallback(() => {
-    if (!spriteData || !brief || !interpretation || !stage3aRawBase64) return;
-    if (isSavingToMap || showAddToPartyOverlay) return;
-    setShowAddToPartyOverlay(true);
-  }, [
-    spriteData,
-    brief,
-    interpretation,
-    stage3aRawBase64,
-    isSavingToMap,
-    showAddToPartyOverlay,
-  ]);
+    beginAddToPartyFromMap();
+  }, [beginAddToPartyFromMap]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -1331,7 +1497,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
         interpretation &&
         stage3bReady &&
         !isUploadLoading &&
-        !showAddToPartyOverlay &&
+        !addToPartyViewOpen &&
         !isSavingToMap && (
           <div className="mt-auto flex-shrink-0 border-t border-neutral-800 p-4 short:p-3.5">
             <button
@@ -1348,14 +1514,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
             </button>
           </div>
         )}
-      {showAddToPartyOverlay && stage3aRawBase64 && (
-        <AddToPartyOverlay
-          stage3aUrl={stage3aRawBase64}
-          onComplete={finishAddToParty}
-        />
-      )}
     </div>
   );
-};
+});
 
 export default SidePanel;

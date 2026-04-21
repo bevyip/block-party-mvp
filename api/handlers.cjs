@@ -13,7 +13,7 @@ const {
 
 const { pathToFileURL } = require("node:url");
 
-const TEXT_MODEL = "gemini-2.0-flash";
+const TEXT_MODEL = "gemini-2.5-flash";
 
 const REF_DIR = path.join(
   __dirname,
@@ -336,10 +336,13 @@ function parseJsonFromText(raw) {
 /** Gemini sometimes returns `[{ ... }]` instead of `{ ... }` for application/json. */
 function unwrapInterpretationJson(parsed) {
   if (Array.isArray(parsed)) {
-    const first = parsed.find((x) => x && typeof x === "object" && !Array.isArray(x));
+    const first = parsed.find(
+      (x) => x && typeof x === "object" && !Array.isArray(x),
+    );
     return first ?? null;
   }
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+    return parsed;
   return null;
 }
 
@@ -417,6 +420,89 @@ function ensureValidSkinTone(designBrief) {
     return;
   }
   designBrief.skin_tone = pickRandomSkinTone();
+}
+
+function stripHexFromPhrase(s) {
+  return String(s)
+    .replace(/#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isBareHexToken(s) {
+  const t = String(s).trim();
+  return /^#?[0-9a-fA-F]{6}$/i.test(t) || /^#?[0-9a-fA-F]{3}$/i.test(t);
+}
+
+/** Fisher–Yates shuffle copy, then first `n` entries (random subset without replacement). */
+function pickRandomSlice(arr, n) {
+  const copy = arr.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = copy[i];
+    copy[i] = copy[j];
+    copy[j] = t;
+  }
+  return copy.slice(0, Math.min(n, copy.length));
+}
+
+/**
+ * Model may return 8+ speech_tease_phrases; we dedupe, then pick 8 at random for the UI.
+ * Strip hex, drop phrases that duplicate theme_elements; pad if fewer than 8.
+ */
+function normalizeSpeechTeasePhrases(designBrief) {
+  if (!designBrief || typeof designBrief !== "object") return;
+  let arr = designBrief.speech_tease_phrases;
+  if (!Array.isArray(arr)) arr = [];
+  const themeSet = new Set(
+    (Array.isArray(designBrief.theme_elements)
+      ? designBrief.theme_elements
+      : []
+    )
+      .map((t) =>
+        String(t ?? "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean),
+  );
+  const cleaned = [];
+  for (const raw of arr) {
+    let s = stripHexFromPhrase(String(raw ?? "").trim());
+    if (!s || isBareHexToken(s)) continue;
+    if (themeSet.has(s.toLowerCase())) continue;
+    cleaned.push(s);
+  }
+  const uniq = [];
+  const seen = new Set();
+  for (const s of cleaned) {
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(s);
+  }
+  const pool = [
+    "Bold silhouette",
+    "Costume flair",
+    "Soft layers",
+    "Playful stance",
+    "Themed outfit",
+    "Tiny details",
+    "Sprite-ready look",
+    "Expressive pose",
+  ];
+  let out;
+  if (uniq.length >= 8) {
+    out = pickRandomSlice(uniq, 8);
+  } else {
+    out = [...uniq];
+    let pi = 0;
+    while (out.length < 8) {
+      out.push(String(pool[pi % pool.length]));
+      pi += 1;
+    }
+  }
+  designBrief.speech_tease_phrases = out;
 }
 
 async function callGemini(model, body) {
@@ -504,7 +590,9 @@ async function interpret({ imageBase64, mimeType }) {
     return {
       ok: false,
       status: 502,
-      body: { error: "Model returned an empty or invalid interpretation object" },
+      body: {
+        error: "Model returned an empty or invalid interpretation object",
+      },
     };
   }
 
@@ -570,6 +658,7 @@ async function brief({ interpretation }) {
       : "sprite";
   designBrief.gender = coerceBinaryGender(designBrief.gender, seed);
   designBrief.skin_tone = pickRandomSkinTone();
+  normalizeSpeechTeasePhrases(designBrief);
 
   return { ok: true, status: 200, body: { designBrief } };
 }
@@ -966,9 +1055,7 @@ async function generateStates(body) {
 
         for (let attempt = 0; attempt < WALK_ATTEMPTS; attempt++) {
           const prompt =
-            attempt === 0
-              ? walkSheetPrompt()
-              : walkSheetRetryPrompt(lastDims);
+            attempt === 0 ? walkSheetPrompt() : walkSheetRetryPrompt(lastDims);
 
           try {
             const { imageBase64 } = await runPipelineGeminiStateGenerate(
@@ -984,7 +1071,9 @@ async function generateStates(body) {
             );
             const meta = await sharpLib(rawBuf).metadata();
             if (!meta.width || !meta.height) {
-              throw new Error("Could not read image dimensions from Gemini response.");
+              throw new Error(
+                "Could not read image dimensions from Gemini response.",
+              );
             }
             lastDims = { width: meta.width, height: meta.height };
 
@@ -997,7 +1086,10 @@ async function generateStates(body) {
         }
 
         if (!walkSheetBuf) {
-          throw lastErr ?? new Error("Walk sheet generation failed after all attempts.");
+          throw (
+            lastErr ??
+            new Error("Walk sheet generation failed after all attempts.")
+          );
         }
 
         walkSheetBuf = await swapWalkSheetLeftRight(walkSheetBuf);

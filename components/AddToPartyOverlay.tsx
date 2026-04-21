@@ -1,103 +1,121 @@
 import React, { useEffect, useRef, useState } from "react";
-import { removeBackground } from "../lib/removeBackground";
 import { setSpritePartyOverlayActive } from "../utils/audio.js";
 
 type AddToPartyOverlayProps = {
-  /** Stage 3A PNG — data URL or bare base64. */
   stage3aUrl: string;
   onComplete: () => void;
+  /** Close overlay and unblock map if portrait prep fails (no save). */
+  onAbort?: () => void;
 };
 
-/** Random welcome line under the four direction previews. */
 export const WELCOME_LINES = [
   "Welcome to the neighborhood.",
   "A new face on the block.",
   "Someone new just moved in.",
 ] as const;
 
-// Each 64×64 Stage 3A frame scaled up with nearest-neighbor to this size
 const CELL_DISPLAY = 256;
+const FRONT_STRIP_COL = 0;
 
-// Gap between sprites in the row
-const GAP = 24;
-
-/**
- * Bounce timeline (all delays are ms from the sequence effect start, same clock as `after()`).
- *
- */
-const BOUNCE_STAGGER_MS = 700;
-const BOUNCE_DURATION_MS = 1200;
-
-/** Pause after intro fade-in; bounce schedule counts from here */
-const SEQUENCE_START_MS = 550;
-/** Extra wait after SEQUENCE_START_MS before the first bounce starts */
-const FIRST_BOUNCE_DELAY_MS = 420;
-
-// After last bounce: hold, then one smooth shrink + overlay fade (no pause mid-scale)
-const HOLD_AFTER_MS = 1500;
-/** Single continuous scale animation 1 → SHRINK_FINAL_SCALE; fade overlaps the tail */
-const EXIT_SHRINK_MS = 2400;
+// Sequence: overlay fade-in → hero intro → settle → hold → exit (shrink + fades). onComplete at end of EXIT_SHRINK_MS.
+/** Brief beat after mount so dimmer can start before hero copy (post–particle handoff). */
+const OVERLAY_VISIBLE_DELAY_MS = 140;
+/** Fullscreen dimmer eases in first. */
+const BACKDROP_FADE_IN_MS = 720;
+/** Sprite + welcome line share one gentle opacity rise. */
+const CONTENT_FADE_IN_MS = 1100;
+const HERO_INTRO_MS = 3800;
+const HERO_SETTLE_PAUSE_MS = 160;
+const CONTENT_READY_BEFORE_EXIT_MS =
+  OVERLAY_VISIBLE_DELAY_MS + HERO_INTRO_MS + HERO_SETTLE_PAUSE_MS;
+const HOLD_AFTER_MS = 260;
+const EXIT_SHRINK_MS = 1900;
+const WELCOME_LINE_EXIT_FADE_MS = 1000;
 const SHRINK_FINAL_SCALE = 0.26;
 
-/**
- * Client Stage 3A PNG is post-`swapStage3ALeftRightColumns` (handlers.cjs):
- * strip columns 0–3 = DOWN, RIGHT, LEFT, UP.
- * Row display: Front, Left, Right, Back → cols 0, 2, 1, 3.
- */
-const DISPLAY_FRAMES = [
-  { key: "down", col: 0, label: "Front" },
-  { key: "left", col: 2, label: "Left" },
-  { key: "right", col: 1, label: "Right" },
-  { key: "up", col: 3, label: "Back" },
-] as const;
-
-const TOTAL_FRAMES = DISPLAY_FRAMES.length;
-
-/** Offset from SEQUENCE_START_MS until the last bounce animation has finished */
-const ALL_BOUNCES_DONE_MS =
-  FIRST_BOUNCE_DELAY_MS +
-  (TOTAL_FRAMES - 1) * BOUNCE_STAGGER_MS +
-  BOUNCE_DURATION_MS;
-
 function toImageSrc(src: string): string {
-  return src.startsWith("data:") ? src : `data:image/png;base64,${src}`;
+  const s = src.trim();
+  if (
+    s.startsWith("data:") ||
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("blob:") ||
+    s.startsWith("/") ||
+    s.startsWith("./") ||
+    s.startsWith("../")
+  ) {
+    return s;
+  }
+  return `data:image/png;base64,${s}`;
 }
 
-/** Cut the horizontal strip into 4 separate PNG data URLs (nearest-neighbor scale). */
-function sliceStage3AStripToCells(stripDataUrl: string): Promise<string[]> {
+/**
+ * 4-across horizontal strip (typical Stage 3A) → first cell (front);
+ * otherwise scale full image into the hero square (nearest-neighbor).
+ * `minWideAspect`: treat as 4×1 strip when width/height ≥ this (API strips are ~4:1).
+ */
+function imageToFrontPartyCell(
+  stripDataUrl: string,
+  minWideAspect = 1.85,
+): Promise<string | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => {
-      const nw = img.naturalWidth;
-      const nh = img.naturalHeight;
-      if (nw < 4 || nh < 1) {
-        resolve([]);
-        return;
-      }
-      const cellW = nw / 4;
-      const urls: string[] = [];
-      for (let col = 0; col < 4; col++) {
+    const finish = () => {
+      try {
+        const nw = img.naturalWidth;
+        const nh = img.naturalHeight;
+        console.log("[partyOverlay] finish", { nw, nh, aspect: nw / nh });
+        if (nw < 1 || nh < 1) {
+          resolve(null);
+          return;
+        }
         const c = document.createElement("canvas");
         c.width = CELL_DISPLAY;
         c.height = CELL_DISPLAY;
-        const ctx = c.getContext("2d")!;
+        const ctx = c.getContext("2d");
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(
-          img,
-          col * cellW,
-          0,
-          cellW,
-          nh,
-          0,
-          0,
-          CELL_DISPLAY,
-          CELL_DISPLAY,
-        );
-        urls.push(c.toDataURL("image/png"));
+        const aspect = nw / nh;
+        const useStripCell = aspect >= minWideAspect;
+        if (useStripCell) {
+          const cellW = nw / 4;
+          const col = FRONT_STRIP_COL;
+          ctx.drawImage(
+            img,
+            col * cellW,
+            0,
+            cellW,
+            nh,
+            0,
+            0,
+            CELL_DISPLAY,
+            CELL_DISPLAY,
+          );
+        } else {
+          ctx.drawImage(img, 0, 0, nw, nh, 0, 0, CELL_DISPLAY, CELL_DISPLAY);
+        }
+        const result = c.toDataURL("image/png");
+        console.log("[partyOverlay] toDataURL ok", result.slice(0, 40));
+        resolve(result);
+      } catch (e) {
+        console.error("[partyOverlay] finish threw", e);
+        resolve(null);
       }
-      resolve(urls);
     };
-    img.onerror = () => resolve([]);
+    img.onload = () => {
+      if (typeof img.decode === "function") {
+        img.decode().then(finish).catch(finish);
+      } else {
+        finish();
+      }
+    };
+    img.onerror = () => {
+      console.error("[partyOverlay] img.onerror", stripDataUrl.slice(0, 60));
+      resolve(null);
+    };
     img.src = stripDataUrl;
   });
 }
@@ -105,17 +123,21 @@ function sliceStage3AStripToCells(stripDataUrl: string): Promise<string[]> {
 export function AddToPartyOverlay({
   stage3aUrl,
   onComplete,
+  onAbort,
 }: AddToPartyOverlayProps) {
-  const [cellUrls, setCellUrls] = useState<string[] | null>(null);
+  const [frontUrl, setFrontUrl] = useState<string | null>(null);
+  /** Image decode / matting failed even after fallback — show message instead of hanging. */
+  const [loadFailed, setLoadFailed] = useState(false);
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
-  const [bouncingIndex, setBouncingIndex] = useState(-1);
   const [welcomeLine, setWelcomeLine] = useState<string | null>(null);
+  const [dimmerIn, setDimmerIn] = useState(false);
 
   const doneRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  const loadingSoundRef = useRef<HTMLAudioElement | null>(null);
+  const onAbortRef = useRef(onAbort);
+  onAbortRef.current = onAbort;
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
@@ -123,81 +145,71 @@ export function AddToPartyOverlay({
     return () => setSpritePartyOverlayActive(false);
   }, []);
 
+  useEffect(() => {
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setDimmerIn(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, []);
+
   function after(fn: () => void, ms: number) {
     const id = window.setTimeout(fn, ms);
     timers.current.push(id);
   }
 
-  // Strip → same border flood-fill BG removal as pipeline/SidePanel (black + white) → 4 cells
   useEffect(() => {
     let cancelled = false;
-    setCellUrls(null);
+    setFrontUrl(null);
+    setLoadFailed(false);
     setVisible(false);
     setExiting(false);
-    setBouncingIndex(-1);
     setWelcomeLine(null);
     doneRef.current = false;
 
-    removeBackground(toImageSrc(stage3aUrl))
-      .then((strip) => {
-        if (cancelled) return Promise.resolve(null);
-        return sliceStage3AStripToCells(strip);
-      })
-      .then((urls) => {
-        if (cancelled || !urls || urls.length !== 4) return;
-        setCellUrls(urls);
+    const src = toImageSrc(stage3aUrl);
+
+    void (async () => {
+      console.log(
+        "[partyOverlay] stage3aUrl received",
+        stage3aUrl.slice(0, 60),
+      );
+      const cell = await imageToFrontPartyCell(src);
+      console.log(
+        "[partyOverlay] cell result",
+        cell ? cell.slice(0, 40) : null,
+      );
+      if (cancelled) return;
+      if (cell) {
+        setFrontUrl(cell);
         setWelcomeLine(
           WELCOME_LINES[Math.floor(Math.random() * WELCOME_LINES.length)] ??
             null,
         );
-      });
+      } else {
+        setLoadFailed(true);
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [stage3aUrl]);
 
-  // Ambient loading sound while the overlay is on screen
   useEffect(() => {
-    if (!cellUrls) return;
-    const audio = new Audio("/sounds/sprite-loading.mp3");
-    audio.loop = true;
-    audio.volume = 0.42;
-    loadingSoundRef.current = audio;
-    void audio.play().catch(() => {});
-    return () => {
-      audio.pause();
-      if (loadingSoundRef.current === audio) loadingSoundRef.current = null;
-    };
-  }, [cellUrls]);
+    if (!frontUrl) return;
 
-  useEffect(() => {
-    if (!cellUrls) return;
+    after(() => setVisible(true), OVERLAY_VISIBLE_DELAY_MS);
 
-    after(() => setVisible(true), 50);
-
-    for (let i = 0; i < TOTAL_FRAMES; i++) {
-      const idx = i;
-      after(
-        () => setBouncingIndex(idx),
-        SEQUENCE_START_MS + FIRST_BOUNCE_DELAY_MS + idx * BOUNCE_STAGGER_MS,
-      );
-    }
-
-    after(() => setBouncingIndex(-1), SEQUENCE_START_MS + ALL_BOUNCES_DONE_MS);
-
-    const exitStart = SEQUENCE_START_MS + ALL_BOUNCES_DONE_MS + HOLD_AFTER_MS;
+    const exitStart = CONTENT_READY_BEFORE_EXIT_MS + HOLD_AFTER_MS;
     after(() => setExiting(true), exitStart);
 
     after(() => {
       if (!doneRef.current) {
         doneRef.current = true;
-        const snd = loadingSoundRef.current;
-        if (snd) {
-          snd.pause();
-          snd.currentTime = 0;
-          loadingSoundRef.current = null;
-        }
         onCompleteRef.current();
       }
     }, exitStart + EXIT_SHRINK_MS);
@@ -206,9 +218,15 @@ export function AddToPartyOverlay({
       timers.current.forEach(window.clearTimeout);
       timers.current = [];
     };
-  }, [cellUrls]);
+  }, [frontUrl]);
 
-  if (!cellUrls) return null;
+  useEffect(() => {
+    if (!loadFailed) return undefined;
+    const id = window.setTimeout(() => {
+      onAbortRef.current?.();
+    }, 3000);
+    return () => window.clearTimeout(id);
+  }, [loadFailed]);
 
   const overlayOpacity = exiting ? 1 : visible ? 1 : 0;
 
@@ -217,75 +235,148 @@ export function AddToPartyOverlay({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: 10050,
         pointerEvents: "none",
-        opacity: overlayOpacity,
-        transition: exiting
-          ? "none"
-          : visible
-            ? "opacity 400ms ease-out"
-            : "none",
-        animation: exiting
-          ? `overlayExitFade ${EXIT_SHRINK_MS}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
-          : "none",
+        opacity: 1,
       }}
-      aria-hidden
+      aria-busy={!frontUrl && !loadFailed}
+      aria-hidden={!frontUrl && !loadFailed}
     >
       <div
         style={{
           position: "absolute",
           inset: 0,
           backgroundColor: "#000",
-          opacity: 0.95,
+          opacity: dimmerIn ? 0.95 : 0,
+          transition: `opacity ${BACKDROP_FADE_IN_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`,
         }}
       />
 
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          animation: exiting
-            ? `spriteRowExitShrink ${EXIT_SHRINK_MS}ms cubic-bezier(0.33, 0.08, 0.2, 1) forwards`
-            : "none",
-        }}
-      >
+      {!frontUrl && !loadFailed ? (
         <div
           style={{
+            position: "absolute",
+            inset: 0,
             display: "flex",
-            flexDirection: "row",
-            flexWrap: "nowrap",
             alignItems: "center",
             justifyContent: "center",
-            gap: `${GAP}px`,
+            padding: 24,
           }}
         >
-          {DISPLAY_FRAMES.map((frame, i) => {
-            const isBouncing = bouncingIndex === i;
-            const src = cellUrls[frame.col]!;
+          <p
+            style={{
+              margin: 0,
+              fontSize: 15,
+              letterSpacing: "0.04em",
+              color: "rgba(255,255,255,0.5)",
+              textAlign: "center",
+              opacity: dimmerIn ? 1 : 0,
+              transition: `opacity ${Math.min(520, BACKDROP_FADE_IN_MS)}ms ease-out`,
+            }}
+          >
+            Preparing your portrait…
+          </p>
+        </div>
+      ) : null}
 
-            return (
+      {loadFailed ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            gap: 20,
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              maxWidth: 360,
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: "rgba(255,200,200,0.85)",
+              textAlign: "center",
+            }}
+          >
+            {"Couldn't load the character preview. Try "}
+            <strong>Add to Party</strong> again from the panel, or refresh the
+            page.
+          </p>
+          {onAbort ? (
+            <button
+              type="button"
+              onClick={() => onAbortRef.current?.()}
+              style={{
+                pointerEvents: "auto",
+                cursor: "pointer",
+                padding: "10px 20px",
+                fontSize: 14,
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.35)",
+                background: "rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.92)",
+              }}
+            >
+              Dismiss
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {frontUrl ? (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: overlayOpacity,
+            transition: exiting
+              ? "none"
+              : visible
+                ? `opacity ${CONTENT_FADE_IN_MS}ms cubic-bezier(0.25, 0.1, 0.25, 1)`
+                : "none",
+            animation: exiting
+              ? `overlayExitFade ${EXIT_SHRINK_MS}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`
+              : "none",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                animation: exiting
+                  ? `spriteRowExitShrink ${EXIT_SHRINK_MS}ms cubic-bezier(0.33, 0.08, 0.2, 1) forwards`
+                  : "none",
+                transformOrigin: "center center",
+              }}
+            >
               <div
-                key={frame.key}
                 style={{
-                  position: "relative",
                   width: `${CELL_DISPLAY}px`,
                   height: `${CELL_DISPLAY}px`,
                   flexShrink: 0,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  animation: isBouncing
-                    ? `spriteBounceSingle ${BOUNCE_DURATION_MS}ms cubic-bezier(0.33, 0.0, 0.2, 1) forwards`
-                    : "none",
+                  animation: exiting
+                    ? "none"
+                    : `partyHeroIntro ${HERO_INTRO_MS}ms cubic-bezier(0.04, 0.88, 0.1, 1) ${OVERLAY_VISIBLE_DELAY_MS}ms both forwards`,
                 }}
               >
                 <img
-                  src={src}
-                  alt={frame.label}
+                  src={frontUrl}
+                  alt="Front"
                   draggable={false}
                   width={CELL_DISPLAY}
                   height={CELL_DISPLAY}
@@ -298,29 +389,48 @@ export function AddToPartyOverlay({
                   }}
                 />
               </div>
-            );
-          })}
+            </div>
+            {welcomeLine ? (
+              <p
+                className="mt-16 mx-6 max-w-xl text-center text-xl font-normal italic tracking-wider text-white"
+                style={{
+                  animation: exiting
+                    ? `welcomeLineExitFade ${WELCOME_LINE_EXIT_FADE_MS}ms cubic-bezier(0.33, 0.1, 0.55, 1) forwards`
+                    : "none",
+                }}
+              >
+                {welcomeLine}
+              </p>
+            ) : null}
+          </div>
         </div>
-        {welcomeLine && (
-          <p className="mt-20 mx-6 max-w-xl text-center text-xl font-normal italic tracking-wider text-white">
-            {welcomeLine}
-          </p>
-        )}
-      </div>
+      ) : null}
 
       <style>{`
-        /* Single arc — no secondary rebound */
-        @keyframes spriteBounceSingle {
-          0%   { transform: translateY(0); }
-          42%  { transform: translateY(-44px); }
-          100% { transform: translateY(0); }
+        @keyframes partyHeroIntro {
+          0% {
+            transform: scale(0.9);
+          }
+          100% {
+            transform: scale(1);
+          }
         }
-        /* One continuous scale — no stop at 0.5 */
+        @keyframes welcomeLineExitFade {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
         @keyframes spriteRowExitShrink {
-          0%   { transform: scale(1); }
-          100% { transform: scale(${SHRINK_FINAL_SCALE}); }
+          0% {
+            transform: scale(1);
+          }
+          100% {
+            transform: scale(${SHRINK_FINAL_SCALE});
+          }
         }
-        /* Stay opaque until ~2/3 through shrink, then fade (scale keeps easing) */
         @keyframes overlayExitFade {
           0%,
           62% {

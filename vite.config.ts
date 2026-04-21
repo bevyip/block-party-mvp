@@ -9,16 +9,21 @@ export default defineConfig({
       name: "pipeline-route",
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
+          // Vite HMR uses `GET /?token=...` + Upgrade: websocket; do not rewrite to index.html.
+          if (req.headers.upgrade?.toLowerCase() === "websocket") {
+            next();
+            return;
+          }
           const url = req.url?.split("?")[0] ?? "";
           if (url === "/" || url === "") {
             req.url = "/index.html";
-          } else if (url === "/archive" || url === "/archive/") {
-            req.url = "/legacy.html";
-          } else if (url === "/legacy" || url === "/legacy/") {
-            req.url = "/legacy.html";
           } else if (url === "/pipeline" || url === "/pipeline/") {
             req.url = "/pipeline.html";
-          } else if (url === "/map" || url === "/map/") {
+          } else if (
+            url === "/map" ||
+            url === "/map/" ||
+            url === "/map.html"
+          ) {
             req.url = "/index.html";
           } else if (url === "/admin" || url === "/admin/") {
             req.url = "/index.html";
@@ -43,7 +48,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),
-        legacy: path.resolve(__dirname, "legacy.html"),
         pipeline: path.resolve(__dirname, "pipeline.html"),
       },
     },

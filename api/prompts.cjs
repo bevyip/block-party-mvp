@@ -42,6 +42,19 @@ function briefPrompt(interpretationJson) {
    The character's colors must ONLY use these hex values:
    #ff5ecb, #e81c2a, #1a6fff, #0a7d32, #ffe600, #f0f0f0, #ff8c00
    Pick the closest matches to the object's natural colors.
+
+   Also include "speech_tease_phrases": an array of at least 8 short strings (8 or more) for UI speech bubbles
+   that tease how this character will LOOK in-game — highly visual and descriptive only. The game will pick 8 at random each time from your list, so include extra good options beyond 8 when you can.
+   - Each string: 1–4 words, no full sentences, no punctuation except hyphen in a compound (e.g. "rose-gold trim").
+   - Favor concrete imagery: hair shape and natural color WORDS (e.g. "auburn waves", "crimson sash"),
+     garment silhouettes, expression energy, accessories — things a player could picture before seeing the sprite.
+   - CRITICAL for speech_tease_phrases:
+     • Use ONLY plain language — NEVER any hex color codes (no "#" sequences, no six-character A-F color codes).
+     • Do NOT copy, paste, or lightly reword ANY item from "theme_elements". That array is separate for the game;
+       the 8 tease lines must be NEW wording drawn from your hair / face / torso / legs / shoes text and from
+       the meaning of "theme_summary" — not a repeat of the theme_elements vocabulary.
+     • Do NOT mention skin, skin tone, complexion, ethnicity, or age labels (no "young", "teen", "elderly", etc.).
+     • Do NOT repeat the same phrase twice; order roughly head-to-toe or general-to-specific.
    
    Output ONLY valid JSON, no explanation, no markdown backticks:
    {
@@ -72,7 +85,12 @@ function briefPrompt(interpretationJson) {
        "description": "<string>"
      },
      "theme_summary": "<ONE sentence only — third-person visual description for a sketch artist: apparent age vibe, hair (style and color), face, expression, clothing layers and colors, shoes; NO mention of skin, skin tone, or complexion; no bullet points, no semicolon lists, no second sentence; plain prose>",
-     "theme_elements": ["<string>"]
+     "theme_elements": ["<string>"],
+     "speech_tease_phrases": [
+       "<1–4 words, visual>",
+       "<1–4 words, visual>",
+       "... include at least 8 entries; more is welcome ..."
+     ]
    }`;
 }
 

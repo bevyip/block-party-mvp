@@ -1,8 +1,18 @@
-/** Left tools panel: shared by /map and index home (App). */
+/** Left tools panel: MapPage on `/` and `/admin` (not on standalone `/map`). */
 export const SIDE_PANEL_EXPAND_W = 44;
 export const PANEL_WIDTH_MS = 360;
 export const PANEL_WIDTH_EASING = "cubic-bezier(0.32, 0.72, 0.22, 1)";
 export const PANEL_CONTENT_FADE_MS = 220;
+
+/** Particle splay duration on the map (then hold blank canvas until overlay completes). */
+export const ADD_TO_PARTY_SPLAY_MS = 2650;
+/**
+ * Map add-to-party: after three chambers fill, wait this long before broadcasting
+ * `add_to_party_splay` so the Roman rings can rest before the particle burst.
+ */
+export const ADD_TO_PARTY_PREFACE_MS = 1200;
+/** Map `/` + SidePanel: opacity ease-in for the fullscreen Add-to-Party layer (MapPage wrapper). */
+export const ADD_TO_PARTY_OVERLAY_ENTRANCE_MS = 520;
 
 // Internal resolution (Retro style, scaled up for crispness)
 export const SCALE = 3;

@@ -186,9 +186,9 @@ function triggerBubble(
     text: pool[Math.floor(Math.random() * pool.length)]!,
     life: BUBBLE_LIFE_MS,
   };
-  // Match legacy UI: when bubbles appear, play a small chirp/blip.
+  // When speech bubbles appear, play a small chirp/blip.
   if (Math.random() < 0.3) playChirp();
-  if (Math.random() < 0.2) playBlip(0.8);
+  if (Math.random() < 0.2) playBlip(0.6);
 }
 
 function updateBubble(s: Sprite, dt: number): void {

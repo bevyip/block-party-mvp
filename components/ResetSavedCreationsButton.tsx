@@ -10,10 +10,7 @@ type Props = {
   showClearButton?: boolean;
 };
 
-/**
- * Replaces the legacy “Reset map” control that lived on the fixed Lite-Brite toolbar
- * (`#litebrite-preview-container`) when that UI is hidden in favor of the side panel.
- */
+/** Clears saved creations locally and on the server; shown on the map admin view. */
 export function ResetSavedCreationsButton({
   className = "text-[11px] text-neutral-500 hover:text-neutral-300 underline-offset-2 hover:underline",
   label = "CLEAR",

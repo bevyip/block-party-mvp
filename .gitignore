@@ -1,9 +1,12 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (Vite / Rollup)
 dist/
 dist-ssr/
+.vite/
+coverage/
+*.tsbuildinfo
 *.local
 
 # Editor directories and files

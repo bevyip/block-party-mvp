@@ -1,6 +1,27 @@
+function toDrawableImageSrc(src: string): string {
+  const s = src.trim();
+  if (
+    s.startsWith("data:") ||
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("blob:") ||
+    s.startsWith("/") ||
+    s.startsWith("./") ||
+    s.startsWith("../")
+  ) {
+    return s;
+  }
+  return `data:image/png;base64,${s}`;
+}
+
 export function removeBackground(base64: string): Promise<string> {
+  const drawable = toDrawableImageSrc(base64);
   return new Promise((resolve) => {
     const img = new Image();
+    img.onerror = () => {
+      /** Image failed to load — return original so callers can still present the sprite. */
+      resolve(drawable);
+    };
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
@@ -70,8 +91,6 @@ export function removeBackground(base64: string): Promise<string> {
       resolve(canvas.toDataURL("image/png"));
     };
 
-    img.src = base64.startsWith("data:")
-      ? base64
-      : `data:image/png;base64,${base64}`;
+    img.src = drawable;
   });
 }
