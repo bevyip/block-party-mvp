@@ -158,7 +158,9 @@ let bgmGestureWakeListenersInstalled = false;
 let bgmGestureWakeAc: AbortController | null = null;
 
 function currentBgmGainTarget(): number {
-  return mapTranslationBgmDucked ? BGM_GAIN_TRANSLATION_OVERLAY : BGM_GAIN_MAP_VIEW;
+  return mapTranslationBgmDucked
+    ? BGM_GAIN_TRANSLATION_OVERLAY
+    : BGM_GAIN_MAP_VIEW;
 }
 
 /**

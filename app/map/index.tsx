@@ -24,6 +24,10 @@ import {
   type GeneratedSpriteEntry,
 } from "../../lib/generatedSprites";
 import {
+  appendSessionSprite,
+  readSessionSprites,
+} from "../../lib/session-sprites";
+import {
   HOUSE_COL,
   HOUSE_ROW,
   MAP_COLS,
@@ -337,6 +341,7 @@ export default function MapPage() {
           spritesRef.current,
         );
         spritesRef.current = [...spritesRef.current, newSprite];
+        appendSessionSprite({ entry, stateUrls });
       }
     },
     [grid],
@@ -440,6 +445,17 @@ export default function MapPage() {
             ...Object.fromEntries(pairs),
           }));
           manifestHydratedRef.current = true;
+          for (const p of readSessionSprites()) {
+            if (manifestIds.has(p.entry.id)) continue;
+            if (
+              spritesRef.current.some(
+                (s) => s.id === `generated_${p.entry.id}`,
+              )
+            ) {
+              continue;
+            }
+            await injectSpriteOptimistically(p.entry, p.stateUrls);
+          }
           return;
         }
 
@@ -461,6 +477,18 @@ export default function MapPage() {
           spritesRef.current = initSprites(grid, SPAWN_POINT, entries);
           setImageCache({});
           manifestHydratedRef.current = true;
+          const manifestIds = new Set(entries.map((e) => e.id));
+          for (const p of readSessionSprites()) {
+            if (manifestIds.has(p.entry.id)) continue;
+            if (
+              spritesRef.current.some(
+                (s) => s.id === `generated_${p.entry.id}`,
+              )
+            ) {
+              continue;
+            }
+            await injectSpriteOptimistically(p.entry, p.stateUrls);
+          }
         }
       }
     };
@@ -469,7 +497,7 @@ export default function MapPage() {
       .then(op)
       .catch(() => {});
     return manifestLoadChainRef.current;
-  }, [grid, handleGeneratedSpriteSaved]);
+  }, [grid, handleGeneratedSpriteSaved, injectSpriteOptimistically]);
 
   useEffect(() => {
     void loadAndInjectGeneratedSprites();
@@ -479,9 +507,20 @@ export default function MapPage() {
     useCallback(
       (event: PipelineStage) => {
         if (event.stage !== "sprite_sent") return;
-        void loadAndInjectGeneratedSprites();
+        void (async () => {
+          for (const p of readSessionSprites()) {
+            if (
+              spritesRef.current.some(
+                (s) => s.id === `generated_${p.entry.id}`,
+              )
+            ) {
+              continue;
+            }
+            await injectSpriteOptimistically(p.entry, p.stateUrls);
+          }
+        })();
       },
-      [loadAndInjectGeneratedSprites],
+      [injectSpriteOptimistically],
     ),
   );
 

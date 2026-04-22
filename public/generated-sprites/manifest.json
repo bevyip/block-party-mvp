@@ -6,7 +6,11 @@
       "object": "character",
       "gender": "male",
       "themeSummary": "Saved sprite (manifest repaired)",
-      "states": ["idle", "walk", "special"],
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -26,7 +30,11 @@
       "gender": "female",
       "themeSummary": "An apparently young-adult woman with long, wavy, vibrant orange hair styled into a loose bun with bright green leaf-like tendrils framing her naturally cheerful face, adorned with two subtle glowing orange pegs on her cheeks, wears a sleeveless deep green bodice dress with a flowing skirt of layered orange petals cinched by a yellow sash, completed by simple deep green flat sandals.",
       "themeEmoji": "🌸",
-      "states": ["idle", "walk", "special"],
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -46,7 +54,11 @@
       "gender": "female",
       "themeSummary": "A character with an energetic vibe, featuring voluminous blue-green-white layered hair, a bright joyful expression with shimmering yellow temple markings, wearing an asymmetrical white-and-blue glowing crop top, a flowing green-and-blue pleated midi skirt, and simple pink glowing ballet flats.",
       "themeEmoji": "✨",
-      "states": ["idle", "walk", "special"],
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -66,7 +78,35 @@
       "gender": "female",
       "themeSummary": "A lively and energetic female figure with short, spiky multi-colored hair and a bright smile, dressed in a vibrant blue tunic with pink and yellow accents, dark blue speckled leggings, and bright white athletic shoes.",
       "themeEmoji": "✨",
-      "states": ["idle", "walk", "special"],
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
+      "hasPortrait": true,
+      "customStateName": "special",
+      "customSpec": {
+        "stateName": "special",
+        "frameCount": 3,
+        "directionRows": 4,
+        "description": "Custom animation",
+        "looping": true,
+        "fps": 8,
+        "rowOrder": "up_left_down_right"
+      }
+    },
+    {
+      "id": "mo9jle8t9225",
+      "createdAt": "2026-04-22T04:18:12.701Z",
+      "object": "flower",
+      "gender": "female",
+      "themeSummary": "A captivating individual with voluminous orange waves, a gentle smile gracing her face, dressed in a vibrant orange gown with green leaf accents that flows like petals, completed by delicate pink slippers.",
+      "themeEmoji": "🌹",
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {

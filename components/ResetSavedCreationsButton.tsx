@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { clearSessionSprites } from "../lib/session-sprites";
 import { CREATIONS_STORAGE_KEY } from "../types";
 
 const DOCS_URL =
@@ -28,6 +29,11 @@ export function ResetSavedCreationsButton({
     }
     try {
       await fetch("/api/clear-sprites", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    try {
+      clearSessionSprites();
     } catch {
       // ignore
     }

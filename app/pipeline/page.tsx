@@ -19,7 +19,11 @@ import {
   SpriteStripView,
   SPRITE_CHECKERBOARD_STYLE,
 } from "../../components/SpriteStripView";
-import type { CustomStateSpec } from "../../lib/generatedSprites";
+import type {
+  CustomStateSpec,
+  GeneratedSpriteEntry,
+} from "../../lib/generatedSprites";
+import { appendSessionSprite } from "../../lib/session-sprites";
 import {
   buildPeekWordsFromBrief,
   pickRandomTeasePhrases,
@@ -763,8 +767,45 @@ export default function PipelinePage() {
             ...(customSpec ? { customSpec } : {}),
           }),
         });
-        const data = (await res.json()) as { id?: string; error?: string };
+        const data = (await res.json()) as {
+          id?: string;
+          savedStates?: string[];
+          error?: string;
+        };
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        const id = data.id;
+        if (id) {
+          const stateUrls: Record<string, string> = {};
+          if (animStateUrls.idle) stateUrls.idle = animStateUrls.idle;
+          if (animStateUrls.walk) stateUrls.walk = animStateUrls.walk;
+          const customName = customSpec?.stateName?.trim();
+          if (customName && animStateUrls.custom) {
+            stateUrls[customName] = animStateUrls.custom;
+          }
+          if (Object.keys(stateUrls).length > 0) {
+            const states =
+              Array.isArray(data.savedStates) && data.savedStates.length > 0
+                ? data.savedStates
+                : Object.keys(stateUrls);
+            const entry: GeneratedSpriteEntry = {
+              id,
+              createdAt: new Date().toISOString(),
+              object: interpretation.object,
+              gender: interpretation.gender,
+              themeSummary: brief.theme_summary,
+              themeEmoji: interpretation.theme_emoji,
+              states,
+              hasPortrait: true,
+              ...(customSpec
+                ? {
+                    customStateName: customSpec.stateName,
+                    customSpec,
+                  }
+                : {}),
+            };
+            appendSessionSprite({ entry, stateUrls });
+          }
+        }
         setSavedId(data.id ?? null);
         setSaveState("saved");
         if (options?.emitSpriteSent !== false) {
