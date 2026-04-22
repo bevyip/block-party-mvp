@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { GeneratedSpriteEntry } from "../lib/generatedSprites";
 
 export type PipelineStage =
   | { stage: "pipeline_started" }
@@ -27,7 +28,13 @@ export type PipelineStage =
   | { stage: "stage3b_started" }
   /** Map chamber rings (0–3): how many animation states you have approved, in any order. */
   | { stage: "stage3b_chambers_sync"; payload: { count: number } }
-  | { stage: "sprite_sent" }
+  | {
+      stage: "sprite_sent";
+      payload?: {
+        entry: GeneratedSpriteEntry;
+        stateUrls: Record<string, string>;
+      };
+    }
   /** Map page: run fullscreen particle splay before Add-to-Party overlay. */
   | { stage: "add_to_party_splay" }
   /** Map page: particle splay finished — SidePanel mounts Add-to-Party overlay. */

@@ -508,6 +508,20 @@ export default function MapPage() {
       (event: PipelineStage) => {
         if (event.stage !== "sprite_sent") return;
         void (async () => {
+          const pl = event.payload;
+          if (
+            pl?.entry &&
+            pl.stateUrls &&
+            Object.keys(pl.stateUrls).length > 0
+          ) {
+            if (
+              !spritesRef.current.some(
+                (s) => s.id === `generated_${pl.entry.id}`,
+              )
+            ) {
+              await injectSpriteOptimistically(pl.entry, pl.stateUrls);
+            }
+          }
           for (const p of readSessionSprites()) {
             if (
               spritesRef.current.some(
