@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { get, put } from "@vercel/blob";
 
 type CustomStateSpec = {
   stateName: string;
@@ -25,6 +24,8 @@ type SaveSpriteBody = {
   customSpec?: CustomStateSpec;
 };
 
+const BLOB_PREFIX = "generated-sprites";
+
 function allocateSpriteId(requested: unknown): string {
   const fallback =
     Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -34,7 +35,24 @@ function allocateSpriteId(requested: unknown): string {
   return requested;
 }
 
-export default function handler(
+async function readManifest(): Promise<{ sprites: Record<string, unknown>[] }> {
+  try {
+    const r = await get(`${BLOB_PREFIX}/manifest.json`, { access: "public" });
+    if (!r || r.statusCode !== 200 || !r.stream) {
+      return { sprites: [] };
+    }
+    const text = await new Response(r.stream).text();
+    const parsed = JSON.parse(text) as { sprites?: unknown[] };
+    const sprites = Array.isArray(parsed.sprites)
+      ? (parsed.sprites as Record<string, unknown>[])
+      : [];
+    return { sprites };
+  } catch {
+    return { sprites: [] };
+  }
+}
+
+export default async function handler(
   req: { method?: string; body?: unknown },
   res: {
     status: (code: number) => {
@@ -42,50 +60,66 @@ export default function handler(
       end: () => void;
     };
   },
-) {
+): Promise<void> {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    res.status(503).json({
+      error:
+        "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN for Vercel Blob.",
+    });
+    return;
   }
 
   try {
     const body = (req.body ?? {}) as SaveSpriteBody;
     const id = allocateSpriteId(body.id);
     const createdAt = new Date().toISOString();
-    const baseDir = path.join(process.cwd(), "public", "generated-sprites", id);
+    const basePath = `${BLOB_PREFIX}/${id}`;
 
-    fs.mkdirSync(baseDir, { recursive: true });
+    const putPublicPng = (pathname: string, buffer: Buffer) =>
+      put(pathname, buffer, {
+        access: "public",
+        contentType: "image/png",
+        allowOverwrite: true,
+      });
+
+    let portraitUrl: string | undefined;
 
     if (body.portrait) {
       const clean = body.portrait.replace(/^data:image\/\w+;base64,/, "");
-      fs.writeFileSync(
-        path.join(baseDir, "portrait.png"),
-        Buffer.from(clean, "base64"),
-      );
+      const buf = Buffer.from(clean, "base64");
+      const blob = await putPublicPng(`${basePath}/portrait.png`, buf);
+      portraitUrl = blob.url;
     }
 
     const savedStates: string[] = [];
+    const stateUrls: Record<string, string> = {};
+
     for (const [state, b64] of Object.entries(body.states ?? {})) {
       if (!b64 || typeof b64 !== "string") continue;
       const clean = b64.replace(/^data:image\/[\w.+-]+;base64,/i, "");
-      // Map key "custom" → customSpec.stateName.png so renderer matches manifest (customStateName).
       const fileBase =
         state === "custom" &&
         typeof body.customSpec?.stateName === "string" &&
         body.customSpec.stateName.trim()
           ? body.customSpec.stateName.trim()
           : state;
-      fs.writeFileSync(
-        path.join(baseDir, `${fileBase}.png`),
-        Buffer.from(clean, "base64"),
-      );
+      const buf = Buffer.from(clean, "base64");
+      const blob = await putPublicPng(`${basePath}/${fileBase}.png`, buf);
       savedStates.push(fileBase);
+      stateUrls[fileBase] = blob.url;
     }
 
     if (body.customSpec && Object.keys(body.customSpec).length > 0) {
-      fs.writeFileSync(
-        path.join(baseDir, "custom-spec.json"),
-        JSON.stringify(body.customSpec, null, 2),
-      );
+      await put(`${basePath}/custom-spec.json`, JSON.stringify(body.customSpec, null, 2), {
+        access: "public",
+        contentType: "application/json",
+        allowOverwrite: true,
+      });
     }
 
     const customName = body.customSpec?.stateName;
@@ -99,8 +133,8 @@ export default function handler(
     );
     const manifestStates = [...orderedStates, ...extra];
 
-    fs.writeFileSync(
-      path.join(baseDir, "brief.json"),
+    await put(
+      `${basePath}/brief.json`,
       JSON.stringify(
         {
           object: body.object,
@@ -112,19 +146,14 @@ export default function handler(
         null,
         2,
       ),
+      {
+        access: "public",
+        contentType: "application/json",
+        allowOverwrite: true,
+      },
     );
 
-    const manifestPath = path.join(
-      process.cwd(),
-      "public",
-      "generated-sprites",
-      "manifest.json",
-    );
-
-    let manifest = { sprites: [] as any[] };
-    if (fs.existsSync(manifestPath)) {
-      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-    }
+    const manifest = await readManifest();
 
     const entry: Record<string, unknown> = {
       id,
@@ -145,11 +174,27 @@ export default function handler(
 
     manifest.sprites.push(entry);
 
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-    return res.status(200).json({ success: true, id, savedStates: manifestStates });
+    const manifestBlob = await put(
+      `${BLOB_PREFIX}/manifest.json`,
+      JSON.stringify(manifest, null, 2),
+      {
+        access: "public",
+        contentType: "application/json",
+        allowOverwrite: true,
+      },
+    );
+
+    res.status(200).json({
+      success: true,
+      id,
+      savedStates: manifestStates,
+      stateUrls,
+      ...(portraitUrl ? { portraitUrl } : {}),
+      manifestUrl: manifestBlob.url,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return res.status(500).json({ error: message });
+    res.status(500).json({ error: message });
   }
 }
 

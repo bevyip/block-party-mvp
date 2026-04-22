@@ -769,6 +769,7 @@ export default function PipelinePage() {
         const data = (await res.json()) as {
           id?: string;
           savedStates?: string[];
+          stateUrls?: Record<string, string>;
           error?: string;
         };
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -778,11 +779,19 @@ export default function PipelinePage() {
         if (options?.emitSpriteSent !== false) {
           if (id) {
             const stateUrls: Record<string, string> = {};
-            if (animStateUrls.idle) stateUrls.idle = animStateUrls.idle;
-            if (animStateUrls.walk) stateUrls.walk = animStateUrls.walk;
-            const customName = customSpec?.stateName?.trim();
-            if (customName && animStateUrls.custom) {
-              stateUrls[customName] = animStateUrls.custom;
+            const fromApi = data.stateUrls;
+            if (fromApi && typeof fromApi === "object") {
+              for (const [k, v] of Object.entries(fromApi)) {
+                if (typeof v === "string" && v.length > 0) stateUrls[k] = v;
+              }
+            }
+            if (Object.keys(stateUrls).length === 0) {
+              if (animStateUrls.idle) stateUrls.idle = animStateUrls.idle;
+              if (animStateUrls.walk) stateUrls.walk = animStateUrls.walk;
+              const customName = customSpec?.stateName?.trim();
+              if (customName && animStateUrls.custom) {
+                stateUrls[customName] = animStateUrls.custom;
+              }
             }
             if (Object.keys(stateUrls).length > 0) {
               const states =
