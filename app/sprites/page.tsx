@@ -78,17 +78,6 @@ function pointInClientRect(
   );
 }
 
-function filenameFromUrl(url: string): string {
-  try {
-    const u = new URL(url, window.location.origin);
-    const seg = u.pathname.split("/").filter(Boolean);
-    return seg[seg.length - 1] ?? "card.png";
-  } catch {
-    const seg = url.split("/").filter(Boolean);
-    return seg[seg.length - 1] ?? "card.png";
-  }
-}
-
 /** Stable foil focal point + hue wheel angle per URL (static, no motion). */
 function thumbHolographicCssVars(src: string): React.CSSProperties {
   let h = 2166136261;
@@ -190,13 +179,7 @@ function SpritesGridThumb({ src }: { src: string }) {
 
 const OVERLAY_MAX_TILT = 15;
 
-function OverlayPreview({
-  url,
-  downloadName,
-}: {
-  url: string;
-  downloadName: string;
-}) {
+function OverlayPreview({ url }: { url: string }) {
   const tiltRootRef = useRef<HTMLDivElement | null>(null);
   const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
   const [shine, setShine] = useState({ px: 50, py: 50 });
@@ -297,14 +280,14 @@ function OverlayPreview({
         const objectUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = objectUrl;
-        a.download = downloadName;
+        a.download = "card.png";
         a.click();
         URL.revokeObjectURL(objectUrl);
       } catch {
         window.open(url, "_blank", "noopener,noreferrer");
       }
     },
-    [url, downloadName],
+    [url],
   );
 
   return (
@@ -935,10 +918,7 @@ export function SpritesPage() {
             className="relative flex max-h-[min(92vh,920px)] max-w-[min(92vw,920px)] flex-col items-center gap-6 px-6 pb-2 pt-2"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <OverlayPreview
-              url={overlayUrl}
-              downloadName={filenameFromUrl(overlayUrl)}
-            />
+            <OverlayPreview url={overlayUrl} />
           </div>
         </div>
       ) : null}
