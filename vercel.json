@@ -1,7 +1,6 @@
 {
   "devCommand": "vite",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/", "destination": "/index.html" },
     { "source": "/pipeline", "destination": "/pipeline.html" },
     { "source": "/pipeline/", "destination": "/pipeline.html" },
@@ -12,6 +11,9 @@
     { "source": "/map.html", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/)(?!assets/)(?!cards/)(?!generated-sprites/)(?!sounds/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

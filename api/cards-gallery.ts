@@ -39,7 +39,13 @@ async function blobCardEntries(): Promise<{ basename: string; url: string }[]> {
         "pathname" in b && typeof b.pathname === "string"
           ? b.pathname
           : new URL(b.url).pathname;
-      const base = pathname.split("/").filter(Boolean).pop() ?? "";
+      const lastSeg = pathname.split("/").filter(Boolean).pop() ?? "";
+      let base = lastSeg;
+      try {
+        base = decodeURIComponent(lastSeg);
+      } catch {
+        base = lastSeg;
+      }
       if (!base.toLowerCase().endsWith(".png")) continue;
       out.push({ basename: base, url: b.url });
     }

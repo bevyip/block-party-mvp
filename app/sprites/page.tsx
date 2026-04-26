@@ -400,15 +400,20 @@ export function SpritesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/cards-gallery");
-        if (!r.ok) return;
+        const r = await fetch("/api/cards-gallery", { cache: "no-store" });
+        const ct = r.headers.get("content-type") ?? "";
+        if (!r.ok || !ct.includes("application/json")) return;
         const data: unknown = await r.json();
         if (!data || typeof data !== "object") return;
         const raw = (data as { urls?: unknown }).urls;
         if (!Array.isArray(raw) || !raw.every((u) => typeof u === "string")) {
           return;
         }
-        if (!cancelled) setCardUrls(raw as string[]);
+        const next = raw as string[];
+        if (!cancelled) {
+          /** Never replace a non-empty baked-in list with an empty API (e.g. HTML mis-route). */
+          setCardUrls((prev) => (next.length > 0 ? next : prev));
+        }
       } catch {
         /* keep virtual:baked-in list when API is unavailable */
       }
