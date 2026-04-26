@@ -1,8 +1,9 @@
 /** Top-down map constants and static layout data. */
 
-export const TILE_SIZE = 192;
+/** 16×9 grid → 1920×1080 world pixels at this tile size. */
+export const TILE_SIZE = 120;
 export const MAP_COLS = 16;
-export const MAP_ROWS = 10;
+export const MAP_ROWS = 9;
 
 export const MAP_WIDTH = MAP_COLS * TILE_SIZE;
 export const MAP_HEIGHT = MAP_ROWS * TILE_SIZE;
@@ -66,7 +67,7 @@ export const TILE_WALKABLE: Record<TileType, boolean> = {
 
 /** River left column per row (two tiles wide: col and col+1). */
 export const RIVER_PATH: readonly number[] = [
-  5, 5, 6, 6, 7, 7, 8, 8, 7, 7,
+  5, 5, 6, 6, 7, 7, 8, 8, 7,
 ];
 
 export const BRIDGE_ROW = 5;

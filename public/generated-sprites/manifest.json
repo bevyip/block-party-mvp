@@ -1,58 +1,35 @@
 {
   "sprites": [
     {
-      "id": "mn6uzw10lrix",
-      "createdAt": "2025-03-25T12:00:00.000Z",
-      "object": "character",
-      "gender": "male",
-      "themeSummary": "Saved sprite (manifest repaired)",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
-      "hasPortrait": true,
-      "customStateName": "special",
-      "customSpec": {
-        "stateName": "special",
-        "frameCount": 3,
-        "directionRows": 4,
-        "description": "Custom animation",
-        "looping": true,
-        "fps": 8,
-        "rowOrder": "up_left_down_right"
-      }
-    },
-    {
-      "id": "mo7xq8440b40",
-      "createdAt": "2026-04-21T01:18:20.308Z",
-      "object": "Flower",
-      "gender": "female",
-      "themeSummary": "An apparently young-adult woman with long, wavy, vibrant orange hair styled into a loose bun with bright green leaf-like tendrils framing her naturally cheerful face, adorned with two subtle glowing orange pegs on her cheeks, wears a sleeveless deep green bodice dress with a flowing skirt of layered orange petals cinched by a yellow sash, completed by simple deep green flat sandals.",
-      "themeEmoji": "🌸",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
-      "hasPortrait": true,
-      "customStateName": "special",
-      "customSpec": {
-        "stateName": "special",
-        "frameCount": 3,
-        "directionRows": 4,
-        "description": "Custom animation",
-        "looping": true,
-        "fps": 8,
-        "rowOrder": "up_left_down_right"
-      }
-    },
-    {
       "id": "mo7zbvbntjet",
       "createdAt": "2026-04-21T02:03:09.794Z",
       "object": "Multicolored glowing formation",
       "gender": "female",
-      "themeSummary": "A character with an energetic vibe, featuring voluminous blue-green-white layered hair, a bright joyful expression with shimmering yellow temple markings, wearing an asymmetrical white-and-blue glowing crop top, a flowing green-and-blue pleated midi skirt, and simple pink glowing ballet flats.",
+      "hair": {
+        "style": "Voluminous, spiky-layered waves",
+        "color": "#1a6fff",
+        "description": "Voluminous, multi-layered spiky waves, styled to appear as if a cluster of light, with strands primarily in bright blue (#1a6fff), accented with green (#0a7d32) streaks and shimmering white (#f0f0f0) highlights, giving an ethereal glowing effect."
+      },
+      "face": {
+        "expression": "Wide-eyed and joyful",
+        "markings": "Delicate, shimmering yellow cluster patterns near the temples",
+        "description": "A bright, open expression with wide, sparkling eyes and a joyful, slightly mischievous smile, complemented by delicate, shimmering yellow (#ffe600) dots forming a 'cluster' pattern near the temples."
+      },
+      "torso": {
+        "style": "Asymmetrical, layered crop top with jagged hemline",
+        "primary_color": "#f0f0f0",
+        "secondary_color": "#1a6fff",
+        "description": "A form-fitting yet flexible crop top featuring multiple overlapping, asymmetrical layers in crisp white (#f0f0f0), with vibrant blue (#1a6fff) accents peeking through, and a faint green (#0a7d32) glow emanating from the seams."
+      },
+      "legs": {
+        "style": "Flowing, irregular pleated midi skirt",
+        "color": "#0a7d32",
+        "description": "A vibrant green (#0a7d32) midi skirt with irregular pleats that give it a clustered, layered appearance, featuring a subtle gradient into blue (#1a6fff) towards the hem, creating a light, airy movement."
+      },
+      "footwear": {
+        "color": "#ff5ecb",
+        "description": "Simple, glowing ballet flats in bright pink (#ff5ecb) with a single cluster-shaped gem on each toe."
+      },
       "themeEmoji": "✨",
       "states": [
         "idle",
@@ -76,7 +53,31 @@
       "createdAt": "2026-04-21T04:27:21.416Z",
       "object": "abstract light cluster",
       "gender": "female",
-      "themeSummary": "A lively and energetic female figure with short, spiky multi-colored hair and a bright smile, dressed in a vibrant blue tunic with pink and yellow accents, dark blue speckled leggings, and bright white athletic shoes.",
+      "hair": {
+        "style": "short, spiky and layered",
+        "color": "#ffe600",
+        "description": "Short, spiky, multi-layered hair styled to resemble a luminous burst of light, with strands in shimmering yellow, pink (#ff5ecb), and hints of blue (#1a6fff) and green (#0a7d32)."
+      },
+      "face": {
+        "expression": "bright, energetic smile",
+        "markings": "star-like light patterns",
+        "description": "A wide, energetic smile and bright, sparkling eyes, with small, star-like patterns in white (#f0f0f0) scattered around the cheekbones, giving a luminous quality."
+      },
+      "torso": {
+        "style": "fitted, sleeveless tunic",
+        "primary_color": "#1a6fff",
+        "secondary_color": "#ff5ecb",
+        "description": "A vibrant blue sleeveless tunic with an asymmetrical design featuring layered pink and yellow (#ffe600) overlay panels, designed to evoke clustered light, adorned with tiny white (#f0f0f0) dots that suggest radiating energy."
+      },
+      "legs": {
+        "style": "form-fitting leggings",
+        "color": "#1a6fff",
+        "description": "Form-fitting dark blue leggings adorned with a scattered pattern of bright green (#0a7d32) and yellow (#ffe600) speckles, creating a dynamic, light-infused effect."
+      },
+      "footwear": {
+        "color": "#f0f0f0",
+        "description": "Lightweight athletic shoes in brilliant white with pink (#ff5ecb) lacing and luminous yellow (#ffe600) accents on the soles, suggesting a swift, energetic gait."
+      },
       "themeEmoji": "✨",
       "states": [
         "idle",
@@ -100,7 +101,31 @@
       "createdAt": "2026-04-22T04:18:12.701Z",
       "object": "flower",
       "gender": "female",
-      "themeSummary": "A captivating individual with voluminous orange waves, a gentle smile gracing her face, dressed in a vibrant orange gown with green leaf accents that flows like petals, completed by delicate pink slippers.",
+      "hair": {
+        "style": "Long, flowing waves styled to resemble unfurling petals",
+        "color": "#ff8c00",
+        "description": "Long, voluminous hair styled into soft, flowing waves that mimic unfurling flower petals, rendered in a vibrant orange hue."
+      },
+      "face": {
+        "expression": "Serene and gently smiling",
+        "markings": "Subtle luminous freckles around the eyes",
+        "description": "A serene and inviting expression, with a gentle smile gracing her lips and bright, lively eyes that suggest a vibrant inner spirit."
+      },
+      "torso": {
+        "style": "Elegant, floor-length gown with petal-like layers",
+        "primary_color": "#ff8c00",
+        "secondary_color": "#0a7d32",
+        "description": "A graceful, floor-length gown featuring an orange bodice that transitions into voluminous, layered skirt panels resembling unfurling petals, accented with delicate green leaf-like embroidery along the waist and hem."
+      },
+      "legs": {
+        "style": "Long gown conceals the lower body",
+        "color": "#0a7d32",
+        "description": "Her legs are mostly concealed by the sweeping hem of her vibrant gown, though the rich dark green of the underlayers or implied hosiery provides a deep, stem-like base."
+      },
+      "footwear": {
+        "color": "#ff5ecb",
+        "description": "Delicate, low-heeled slippers adorned with a small, stylized leaf clasp, perfectly matching the romantic floral theme."
+      },
       "themeEmoji": "🌹",
       "states": [
         "idle",
@@ -108,6 +133,102 @@
         "special"
       ],
       "hasPortrait": true,
+      "customStateName": "special",
+      "customSpec": {
+        "stateName": "special",
+        "frameCount": 3,
+        "directionRows": 4,
+        "description": "Custom animation",
+        "looping": true,
+        "fps": 8,
+        "rowOrder": "up_left_down_right"
+      }
+    },
+    {
+      "id": "modcexvl4fde",
+      "createdAt": "2026-04-24T20:08:18.945Z",
+      "object": "hamburger",
+      "gender": "male",
+      "hair": {
+        "style": "Voluminous, rounded, with subtle texture",
+        "color": "#ffe600",
+        "description": "A voluminous, rounded hairstyle that evokes the top of a brioche bun, subtly textured with tiny flecks of light grey."
+      },
+      "face": {
+        "expression": "Cheerful and inviting",
+        "markings": "Subtle orange dots on cheeks",
+        "description": "A wide, inviting smile with bright, optimistic eyes, featuring subtle orange freckle-like dots on the cheeks to represent glowing pegs."
+      },
+      "torso": {
+        "style": "Layered tunic and vest",
+        "primary_color": "#e81c2a",
+        "secondary_color": "#ffe600",
+        "description": "A layered tunic. The underlayer is a bright yellow, topped by a vibrant red vest that suggests a thick slice of tomato, with a green ruffle peeking from the collar."
+      },
+      "legs": {
+        "style": "Relaxed-fit shorts",
+        "color": "#ff8c00",
+        "description": "Relaxed-fit shorts in a crisp orange hue, reminiscent of freshly fried potato sticks, with a slight crumple effect."
+      },
+      "footwear": {
+        "color": "#ffe600",
+        "description": "Sturdy, rounded yellow sneakers, designed to resemble the soft bottom bun of a hamburger."
+      },
+      "themeEmoji": "🍔",
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
+      "hasPortrait": true,
+      "customStateName": "special",
+      "customSpec": {
+        "stateName": "special",
+        "frameCount": 3,
+        "directionRows": 4,
+        "description": "Custom animation",
+        "looping": true,
+        "fps": 8,
+        "rowOrder": "up_left_down_right"
+      }
+    },
+    {
+      "id": "modcr5vvhd0v",
+      "createdAt": "2026-04-24T20:17:49.195Z",
+      "object": "Abstract light cluster",
+      "gender": "female",
+      "themeEmoji": "✨",
+      "states": [
+        "idle",
+        "walk",
+        "special"
+      ],
+      "hasPortrait": true,
+      "hair": {
+        "style": "Voluminous clustered buns",
+        "color": "#ffe600",
+        "description": "Styled into three prominent, irregularly shaped buns, appearing to glow with a soft light, reminiscent of luminous spheres."
+      },
+      "face": {
+        "expression": "Enigmatic smile",
+        "markings": "Scattered luminous dots",
+        "description": "A gentle, knowing smile with eyes that seem to hold a luminous depth. Small, multi-colored circular markings dot her cheekbones like scattered light."
+      },
+      "torso": {
+        "style": "Layered tunic with circular motifs",
+        "primary_color": "#1a6fff",
+        "secondary_color": "#ff5ecb",
+        "description": "A flowing tunic, deep blue like a twilight sky, adorned with scattered glowing circular patterns in pink and yellow. The silhouette is soft and slightly asymmetrical."
+      },
+      "legs": {
+        "style": "Flowing trousers",
+        "color": "#0a7d32",
+        "description": "Loose-fitting trousers in a deep emerald green, offering a sense of fluid movement that complements the tunic."
+      },
+      "footwear": {
+        "color": "#ffe600",
+        "description": "Simple, flat shoes with a subtle glowing trim, matching the vibrant yellow of her hair."
+      },
       "customStateName": "special",
       "customSpec": {
         "stateName": "special",

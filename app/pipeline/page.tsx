@@ -19,9 +19,10 @@ import {
   SpriteStripView,
   SPRITE_CHECKERBOARD_STYLE,
 } from "../../components/SpriteStripView";
-import type {
-  CustomStateSpec,
-  GeneratedSpriteEntry,
+import {
+  manifestStage2FromBrief,
+  type CustomStateSpec,
+  type GeneratedSpriteEntry,
 } from "../../lib/generatedSprites";
 import {
   buildPeekWordsFromBrief,
@@ -92,6 +93,95 @@ async function readFileAsBase64(file: File): Promise<{
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
+}
+
+function CollectibleCardUploadCollapsible() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const onPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setMsg(null);
+    setErr(null);
+    if (file.type !== "image/png" && file.type !== "image/jpeg") {
+      setErr("Please use a PNG or JPEG file.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { base64, mimeType } = await readFileAsBase64(file);
+      const r = await fetch("/api/upload-collectible-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: `data:${mimeType};base64,${base64}`,
+        }),
+      });
+      const data = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) {
+        setErr(
+          typeof data.error === "string" ? data.error : `Error ${r.status}`,
+        );
+        return;
+      }
+      setMsg("Card added. Open the Sprites page to see it in the gallery.");
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  return (
+    <div className="w-full max-w-[min(100%,18rem)] shrink-0 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900/90 text-left shadow-lg lg:ml-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-neutral-300 hover:bg-neutral-800/80 hover:text-white"
+        aria-expanded={open}
+      >
+        <span>Add collectible card</span>
+        <span className="text-neutral-500" aria-hidden>
+          {open ? "−" : "+"}
+        </span>
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-neutral-700 px-3 py-3">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            disabled={busy}
+            onChange={(ev) => void onPick(ev)}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+            className="w-full rounded-md border border-violet-600/70 bg-violet-950/50 px-3 py-2 text-sm font-medium text-violet-100 hover:bg-violet-900/60 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? "Uploading…" : "Choose image"}
+          </button>
+          {msg ? (
+            <p className="text-xs text-emerald-300/90" role="status">
+              {msg}
+            </p>
+          ) : null}
+          {err ? (
+            <p className="text-xs text-red-300/90" role="alert">
+              {err}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -803,10 +893,10 @@ export default function PipelinePage() {
                 createdAt: new Date().toISOString(),
                 object: interpretation.object,
                 gender: interpretation.gender,
-                themeSummary: brief.theme_summary,
                 themeEmoji: interpretation.theme_emoji,
                 states,
                 hasPortrait: true,
+                ...(manifestStage2FromBrief(brief) ?? {}),
                 ...(customSpec
                   ? {
                       customStateName: customSpec.stateName,
@@ -1562,48 +1652,51 @@ export default function PipelinePage() {
                   : "Spritesheet animation states"}
               </li>
             </ol>
-            {(showSaveFooter || interpretation) && (
-              <div className="flex shrink-0 flex-wrap items-start justify-end gap-3 lg:max-w-[min(100%,28rem)] lg:pt-0.5">
-                {showSaveFooter ? (
-                  <SaveToMapBlock
-                    alignEnd
-                    saveState={saveState}
-                    savedId={savedId}
-                    s3bRunning={s3bRunning}
-                    onSave={() => void handleSave()}
-                    disabled={
-                      saveState === "saving" ||
-                      saveState === "saved" ||
-                      !interpretation ||
-                      !brief ||
-                      !fourViewRawBase64 ||
-                      s3bRunning ||
-                      !stage3bComplete ||
-                      !allAnimStatesApproved
-                    }
-                    title={
-                      saveState === "saving"
-                        ? "Saving…"
-                        : saveState === "saved"
-                          ? "Already saved for this run"
-                          : s3bRunning || !stage3bComplete
-                            ? "Finish all Stage 3B states (idle, walk, custom), then you can save to the map"
-                            : !allAnimStatesApproved
-                              ? "Confirm all three animation rows with the check buttons before saving"
-                              : undefined
-                    }
-                  />
-                ) : null}
-                <button
-                  type="button"
-                  onClick={tryAnother}
-                  className={`${PIPELINE_PRIMARY} px-6 py-3`}
-                  disabled={!hasImage && !previewUrl && !interpretation}
-                >
-                  Try another scan
-                </button>
-              </div>
-            )}
+            <div className="flex w-full shrink-0 flex-col items-stretch gap-3 lg:ml-auto lg:w-auto lg:max-w-md lg:items-end">
+              <CollectibleCardUploadCollapsible />
+              {(showSaveFooter || interpretation) && (
+                <div className="flex shrink-0 flex-wrap items-start justify-end gap-3 lg:max-w-[min(100%,28rem)] lg:pt-0.5">
+                  {showSaveFooter ? (
+                    <SaveToMapBlock
+                      alignEnd
+                      saveState={saveState}
+                      savedId={savedId}
+                      s3bRunning={s3bRunning}
+                      onSave={() => void handleSave()}
+                      disabled={
+                        saveState === "saving" ||
+                        saveState === "saved" ||
+                        !interpretation ||
+                        !brief ||
+                        !fourViewRawBase64 ||
+                        s3bRunning ||
+                        !stage3bComplete ||
+                        !allAnimStatesApproved
+                      }
+                      title={
+                        saveState === "saving"
+                          ? "Saving…"
+                          : saveState === "saved"
+                            ? "Already saved for this run"
+                            : s3bRunning || !stage3bComplete
+                              ? "Finish all Stage 3B states (idle, walk, custom), then you can save to the map"
+                              : !allAnimStatesApproved
+                                ? "Confirm all three animation rows with the check buttons before saving"
+                                : undefined
+                      }
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={tryAnother}
+                    className={`${PIPELINE_PRIMARY} px-6 py-3`}
+                    disabled={!hasImage && !previewUrl && !interpretation}
+                  >
+                    Try another scan
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "dev:api": "node api-server.cjs"
+    "dev:api": "node api-server.cjs",
+    "sync:cards-to-blob": "node scripts/sync-public-cards-to-blob.mjs",
+    "sync:cards-to-blob:dry": "node scripts/sync-public-cards-to-blob.mjs --dry-run"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",

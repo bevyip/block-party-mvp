@@ -11,9 +11,10 @@ import type {
   DesignBrief,
   Interpretation,
 } from "../app/pipeline/types";
-import type {
-  CustomStateSpec,
-  GeneratedSpriteEntry,
+import {
+  manifestStage2FromBrief,
+  type CustomStateSpec,
+  type GeneratedSpriteEntry,
 } from "../lib/generatedSprites";
 import { SpriteResult, ProcessingStatus } from "../types";
 import { generateStage3AImage } from "../lib/pipelineStage3A";
@@ -763,6 +764,7 @@ const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(function SidePanel
     if (customName && animStateUrls.custom)
       stateUrls[customName] = animStateUrls.custom;
 
+    const stage2Manifest = manifestStage2FromBrief(brief);
     const optimisticEntry: GeneratedSpriteEntry | null =
       injectSpriteOptimistically && Object.keys(stateUrls).length > 0
         ? {
@@ -770,10 +772,10 @@ const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(function SidePanel
             createdAt: new Date().toISOString(),
             object: interpretation.object,
             gender: interpretation.gender,
-            themeSummary: brief.theme_summary,
             themeEmoji: interpretation.theme_emoji,
             states: Object.keys(stateUrls),
             hasPortrait: true,
+            ...(stage2Manifest ?? {}),
             ...(customSpec
               ? { customStateName: customSpec.stateName, customSpec }
               : {}),
@@ -820,10 +822,10 @@ const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(function SidePanel
             createdAt: new Date().toISOString(),
             object: interpretation.object,
             gender: interpretation.gender,
-            themeSummary: brief.theme_summary,
             themeEmoji: interpretation.theme_emoji,
             states: data.savedStates,
             hasPortrait: true,
+            ...(manifestStage2FromBrief(brief) ?? {}),
             ...(customSpec
               ? { customStateName: customSpec.stateName, customSpec }
               : {}),

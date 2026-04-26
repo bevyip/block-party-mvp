@@ -1,4 +1,5 @@
 import { get, put } from "@vercel/blob";
+import { manifestStage2FromBrief } from "../lib/generatedSprites";
 
 type CustomStateSpec = {
   stateName: string;
@@ -155,15 +156,16 @@ export default async function handler(
 
     const manifest = await readManifest();
 
+    const stage2 = manifestStage2FromBrief(body.brief);
     const entry: Record<string, unknown> = {
       id,
       createdAt,
       object: body.object,
       gender: body.gender,
-      themeSummary: body.themeSummary,
       ...(body.themeEmoji ? { themeEmoji: body.themeEmoji } : {}),
       states: manifestStates,
       hasPortrait: !!body.portrait,
+      ...(stage2 ?? {}),
     };
     if (customName) {
       entry.customStateName = customName;

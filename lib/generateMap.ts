@@ -96,14 +96,26 @@ function minDistToBridge(col: number, row: number): number {
 
 function waterVariantAsset(): string {
   const u = Math.random() * 100;
-  if (u < 60) return ASSETS.water;
-  const variants = [
+  if (u < 48) return ASSETS.water;
+  return pick([
     ASSETS.water_lily,
     ASSETS.water_lily1,
     ASSETS.water_lily2,
     ASSETS.water_shrub,
-  ] as const;
-  return pick([...variants]);
+    ASSETS.water_shrub1,
+    ASSETS.water_shrub2,
+  ]);
+}
+
+function waterSurfaceAssetToType(asset: string): TileType {
+  if (asset === ASSETS.water) return "water";
+  if (asset === ASSETS.water_lily) return "water_lily";
+  if (asset === ASSETS.water_lily1) return "water_lily1";
+  if (asset === ASSETS.water_lily2) return "water_lily2";
+  if (asset === ASSETS.water_shrub) return "water_shrub";
+  if (asset === ASSETS.water_shrub1) return "water_shrub1";
+  if (asset === ASSETS.water_shrub2) return "water_shrub2";
+  return "water";
 }
 
 function makeGrassTile(): Tile {
@@ -232,20 +244,8 @@ export function generateMap(): Tile[][] {
     const c0 = RIVER_PATH[r]!;
     for (const c of [c0, c0 + 1]) {
       const wt = waterVariantAsset();
-      const t: TileType =
-        wt === ASSETS.water
-          ? "water"
-          : wt === ASSETS.water_lily
-            ? "water_lily"
-            : wt === ASSETS.water_lily1
-              ? "water_lily1"
-              : wt === ASSETS.water_lily2
-                ? "water_lily2"
-                : wt === ASSETS.water_shrub
-                  ? "water_shrub"
-                  : "water";
       grid[r]![c] = {
-        type: t,
+        type: waterSurfaceAssetToType(wt),
         walkable: false,
         asset: wt,
       };
@@ -443,7 +443,7 @@ export function generateMap(): Tile[][] {
   const nLarge = randomInt(7, 9);
   for (let i = 0; i < nLarge; i++) tryPlaceLargeTree();
 
-  const nClumps = randomInt(5, 8);
+  const nClumps = randomInt(6, 9);
   for (let i = 0; i < nClumps; i++) tryPlaceTreeClump();
 
   function tryPlaceSmallTree(): boolean {
@@ -483,7 +483,7 @@ export function generateMap(): Tile[][] {
     return true;
   }
 
-  const nRocks = randomInt(5, 7);
+  const nRocks = randomInt(6, 9);
   for (let i = 0; i < nRocks; i++) tryPlaceRock();
 
   const largeTreeCells: [number, number][] = [];
