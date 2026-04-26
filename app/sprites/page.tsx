@@ -285,6 +285,28 @@ function OverlayPreview({
 
   const spinDeg = tilt.ry * 2.2 + tilt.rx * 1.4;
 
+  /** `download` on `<a href>` is ignored cross-origin; fetch → blob → same-origin `blob:` respects `download`. */
+  const onSaveImage = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error("fetch failed");
+        const blob = await r.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = downloadName;
+        a.click();
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    },
+    [url, downloadName],
+  );
+
   return (
     <>
       <div
@@ -373,14 +395,14 @@ function OverlayPreview({
           </div>
         </div>
       </div>
-      <a
+      <button
+        type="button"
         className="rounded-md border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800"
-        href={url}
-        download={downloadName}
+        onClick={onSaveImage}
         onPointerDown={(e) => e.stopPropagation()}
       >
         Save Image
-      </a>
+      </button>
     </>
   );
 }
