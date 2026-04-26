@@ -29,3 +29,52 @@ export function sortCollectibleCardFilenames(filenames: string[]): string[] {
 export function toPublicCardPaths(filenames: string[]): string[] {
   return filenames.map((n) => `/cards/${n}`);
 }
+
+/**
+ * Merge repo paths (`/cards/…`) with blob `{ basename, url }`, prefer local URL when names clash,
+ * then order by the same rules as `sortCollectibleCardFilenames` (base template before `(n)` variants).
+ */
+export function mergeCollectibleCardUrls(
+  localPaths: string[],
+  blobEntries: { basename: string; url: string }[],
+): string[] {
+  const urlByBase = new Map<string, string>();
+  for (const u of localPaths) {
+    const b = u.replace(/^\/cards\//, "");
+    if (b) urlByBase.set(b, u);
+  }
+  for (const e of blobEntries) {
+    if (!urlByBase.has(e.basename)) urlByBase.set(e.basename, e.url);
+  }
+  const sortedNames = sortCollectibleCardFilenames([...urlByBase.keys()]);
+  return sortedNames.map((name) => urlByBase.get(name)!);
+}
+
+function basenameFromGalleryUrl(url: string): string {
+  try {
+    const pathname = url.startsWith("http")
+      ? new URL(url).pathname
+      : url.startsWith("/")
+        ? url
+        : `/${url}`;
+    const last = pathname.split("/").filter(Boolean).pop() ?? "";
+    try {
+      return decodeURIComponent(last);
+    } catch {
+      return last;
+    }
+  } catch {
+    return url;
+  }
+}
+
+/** Re-order a flat list of `/cards/…` or absolute blob URLs using the same filename rules. */
+export function sortCollectibleGalleryUrls(urls: readonly string[]): string[] {
+  const urlByBase = new Map<string, string>();
+  for (const u of urls) {
+    const b = basenameFromGalleryUrl(u);
+    if (b) urlByBase.set(b, u);
+  }
+  const sortedNames = sortCollectibleCardFilenames([...urlByBase.keys()]);
+  return sortedNames.map((name) => urlByBase.get(name)!);
+}

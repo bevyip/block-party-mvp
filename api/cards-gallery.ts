@@ -38,6 +38,22 @@ function toPublicCardPaths(filenames: string[]): string[] {
   return filenames.map((n) => `/cards/${n}`);
 }
 
+function mergeCollectibleCardUrls(
+  localPaths: string[],
+  blobEntries: { basename: string; url: string }[],
+): string[] {
+  const urlByBase = new Map<string, string>();
+  for (const u of localPaths) {
+    const b = u.replace(/^\/cards\//, "");
+    if (b) urlByBase.set(b, u);
+  }
+  for (const e of blobEntries) {
+    if (!urlByBase.has(e.basename)) urlByBase.set(e.basename, e.url);
+  }
+  const sortedNames = sortCollectibleCardFilenames([...urlByBase.keys()]);
+  return sortedNames.map((name) => urlByBase.get(name)!);
+}
+
 function localCardPaths(): string[] {
   const dir = path.join(process.cwd(), "public", "cards");
   try {
@@ -68,7 +84,9 @@ async function blobCardEntries(): Promise<{ basename: string; url: string }[]> {
       for (const b of batch) {
         if (!b.url || typeof b.url !== "string") continue;
         let pathname =
-          "pathname" in b && typeof b.pathname === "string" && b.pathname.length > 0
+          "pathname" in b &&
+          typeof b.pathname === "string" &&
+          b.pathname.length > 0
             ? b.pathname
             : "";
         if (!pathname) {
@@ -89,7 +107,9 @@ async function blobCardEntries(): Promise<{ basename: string; url: string }[]> {
         out.push({ basename: base, url: b.url });
       }
       const nextCursor =
-        typeof r.cursor === "string" && r.cursor.length > 0 ? r.cursor : undefined;
+        typeof r.cursor === "string" && r.cursor.length > 0
+          ? r.cursor
+          : undefined;
       if (Boolean(r.hasMore) && !nextCursor) {
         break;
       }
@@ -113,13 +133,8 @@ export default async function handler(
 
   try {
     const local = localCardPaths();
-    const localBasenames = new Set(
-      local.map((u) => u.replace(/^\/cards\//, "")),
-    );
     const blobs = await blobCardEntries();
-    const extra = blobs.filter((b) => !localBasenames.has(b.basename));
-    extra.sort((a, b) => a.basename.localeCompare(b.basename));
-    const urls = [...local, ...extra.map((e) => e.url)];
+    const urls = mergeCollectibleCardUrls(local, blobs);
     res.status(200).json({ urls });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

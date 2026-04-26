@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { CARD_URLS } from "virtual:cards-gallery";
+import { sortCollectibleGalleryUrls } from "../../lib/cardGallerySort";
 import SpritesStarfield from "./SpritesStarfield";
 
 const COLS = 10;
@@ -409,7 +410,7 @@ export function SpritesPage() {
         if (!Array.isArray(raw) || !raw.every((u) => typeof u === "string")) {
           return;
         }
-        const next = raw as string[];
+        const next = sortCollectibleGalleryUrls(raw as string[]);
         if (!cancelled) {
           /** Never replace a non-empty baked-in list with an empty API (e.g. HTML mis-route). */
           setCardUrls((prev) => (next.length > 0 ? next : prev));
@@ -608,7 +609,7 @@ export function SpritesPage() {
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el || urls.length === 0) return;
+    if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
       if (overlayUrlRef.current) return;
@@ -665,7 +666,7 @@ export function SpritesPage() {
 
     el.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => el.removeEventListener("wheel", onWheel, { capture: true });
-  }, [applyPan, canvasH, canvasW, urls.length, vw, vh, zoomMin]);
+  }, [applyPan, canvasH, canvasW, vw, vh, zoomMin]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -709,7 +710,7 @@ export function SpritesPage() {
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el || urls.length === 0) return;
+    if (!el) return;
 
     const onTouchStart = (ev: TouchEvent) => {
       if (overlayUrl) return;
@@ -766,7 +767,7 @@ export function SpritesPage() {
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [canvasH, canvasW, overlayUrl, urls.length, vw, vh, zoomMin]);
+  }, [canvasH, canvasW, overlayUrl, vw, vh, zoomMin]);
 
   const gridTemplate = useMemo(
     () => ({
