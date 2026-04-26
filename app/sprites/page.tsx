@@ -59,15 +59,6 @@ function clampPan(
   };
 }
 
-function wheelZoomModifier(e: WheelEvent): boolean {
-  return (
-    e.ctrlKey ||
-    e.metaKey ||
-    (typeof e.getModifierState === "function" &&
-      (e.getModifierState("Control") || e.getModifierState("Meta")))
-  );
-}
-
 /** Normalize deltaY to pixel-like units so mouse wheels (DOM_DELTA_LINE) zoom enough. */
 function normalizeWheelDeltaY(e: WheelEvent): number {
   let d = e.deltaY;
@@ -112,7 +103,7 @@ function thumbHolographicCssVars(src: string): React.CSSProperties {
   const u2 = h2 / 2 ** 32;
   const hx = 26 + u0 * 48;
   const hy = 22 + u2 * 52;
-  const spin = -52 + ((h >>> 0) % 7200) / 7200 * 104;
+  const spin = -52 + (((h >>> 0) % 7200) / 7200) * 104;
   return {
     ["--hx" as string]: `${hx.toFixed(1)}%`,
     ["--hy" as string]: `${hy.toFixed(1)}%`,
@@ -280,16 +271,19 @@ function OverlayPreview({
     [applyPointer, supportsHoverTilt],
   );
 
-  const endPointer = useCallback((e: React.PointerEvent) => {
-    if (supportsHoverTilt) return;
-    if (!pointerDown.current) return;
-    resetTilt();
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  }, [resetTilt, supportsHoverTilt]);
+  const endPointer = useCallback(
+    (e: React.PointerEvent) => {
+      if (supportsHoverTilt) return;
+      if (!pointerDown.current) return;
+      resetTilt();
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    [resetTilt, supportsHoverTilt],
+  );
 
   const spinDeg = tilt.ry * 2.2 + tilt.rx * 1.4;
 
@@ -638,35 +632,28 @@ export function SpritesPage() {
       const localX = clientX - rect.left;
       const localY = clientY - rect.top;
 
-      if (wheelZoomModifier(e)) {
-        e.preventDefault();
-        e.stopPropagation();
-        const s0 = scaleRef.current;
-        const t0x = txRef.current;
-        const t0y = tyRef.current;
-        const delta = -normalizeWheelDeltaY(e);
-        const factor = Math.exp(delta * WHEEL_ZOOM_PIXEL_FACTOR);
-        const s1 = clamp(s0 * factor, zoomMin, MAX_SCALE);
-        if (s1 === s0) return;
-        const wx = (localX - t0x) / s0;
-        const wy = (localY - t0y) / s0;
-        const t1x = localX - wx * s1;
-        const t1y = localY - wy * s1;
-        const c = clampPan(t1x, t1y, s1, vw, vh, canvasW, canvasH);
-        setScale(s1);
-        setTx(c.tx);
-        setTy(c.ty);
-        return;
-      }
-
       e.preventDefault();
       e.stopPropagation();
-      applyPan(txRef.current, tyRef.current - normalizeWheelDeltaY(e));
+      const s0 = scaleRef.current;
+      const t0x = txRef.current;
+      const t0y = tyRef.current;
+      const delta = -normalizeWheelDeltaY(e);
+      const factor = Math.exp(delta * WHEEL_ZOOM_PIXEL_FACTOR);
+      const s1 = clamp(s0 * factor, zoomMin, MAX_SCALE);
+      if (s1 === s0) return;
+      const wx = (localX - t0x) / s0;
+      const wy = (localY - t0y) / s0;
+      const t1x = localX - wx * s1;
+      const t1y = localY - wy * s1;
+      const c = clampPan(t1x, t1y, s1, vw, vh, canvasW, canvasH);
+      setScale(s1);
+      setTx(c.tx);
+      setTy(c.ty);
     };
 
     el.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => el.removeEventListener("wheel", onWheel, { capture: true });
-  }, [applyPan, canvasH, canvasW, vw, vh, zoomMin]);
+  }, [canvasH, canvasW, vw, vh, zoomMin]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -870,9 +857,9 @@ export function SpritesPage() {
             Below xl: phone / tablet — touch-only (media query, not UA sniffing).
           */}
           <div className="hidden flex-col gap-0.5 xl:flex">
-            <div className="whitespace-nowrap">Zoom: Ctrl/ ⌘ + scroll</div>
+            <div className="whitespace-nowrap">Zoom: scroll</div>
             <div className="whitespace-nowrap">Select card: click</div>
-            <div className="whitespace-nowrap">Pan: drag or scroll wheel</div>
+            <div className="whitespace-nowrap">Pan: drag</div>
           </div>
           <div className="flex flex-col gap-0.5 xl:hidden">
             <div className="whitespace-nowrap">Zoom: pinch</div>
