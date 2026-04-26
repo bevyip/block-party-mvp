@@ -19,7 +19,7 @@ const MAX_SCALE = 4;
 const WHEEL_ZOOM_PIXEL_FACTOR = 0.002;
 /** At max zoom-out, visible span is at most this fraction of content (rest needs pan). */
 const MAX_VISIBLE_FRAC = 0.75;
-/** Initial view: aim for roughly this many columns worth of width on screen. */
+/** Initial view: aim for roughly this many column-pitches visible (about 2–3 cards). */
 const INITIAL_VISIBLE_COLS = 2.55;
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -117,7 +117,7 @@ function SpritesGridThumb({ src }: { src: string }) {
     <div
       className="relative inline-block max-h-full max-w-full overflow-hidden"
       style={{
-        borderRadius: 2,
+        borderRadius: 3,
         isolation: "isolate",
         ...holo,
       }}
@@ -129,7 +129,7 @@ function SpritesGridThumb({ src }: { src: string }) {
         className="relative z-0 box-border block max-h-full max-w-full select-none object-contain"
         onDragStart={(e) => e.preventDefault()}
         style={{
-          borderRadius: 2,
+          borderRadius: 3,
           width: "auto",
           height: "auto",
           maxWidth: CELL,
@@ -459,9 +459,13 @@ export function SpritesPage() {
 
   const dragRef = useRef<{
     pointerId: number;
+    startX: number;
+    startY: number;
     lastX: number;
     lastY: number;
   } | null>(null);
+  const isDragRef = useRef(false);
+  const suppressCardClickRef = useRef(false);
 
   const pinchRef = useRef<{
     d0: number;
@@ -660,11 +664,18 @@ export function SpritesPage() {
       if (overlayUrl) return;
       if (e.button !== 0) return;
       if (pinchRef.current) return;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      /** Defer capture until pan threshold (see `onPointerMove`): capturing here
+       *  would retarget `pointerup` away from the card `<button>` and block `click`. */
+      const x = e.clientX;
+      const y = e.clientY;
+      isDragRef.current = false;
+      suppressCardClickRef.current = false;
       dragRef.current = {
         pointerId: e.pointerId,
-        lastX: e.clientX,
-        lastY: e.clientY,
+        startX: x,
+        startY: y,
+        lastX: x,
+        lastY: y,
       };
     },
     [overlayUrl],
@@ -674,6 +685,12 @@ export function SpritesPage() {
     (e: React.PointerEvent) => {
       const d = dragRef.current;
       if (!d || d.pointerId !== e.pointerId) return;
+      const fromStart = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if (!isDragRef.current) {
+        if (fromStart <= 4) return;
+        isDragRef.current = true;
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }
       const dx = e.clientX - d.lastX;
       const dy = e.clientY - d.lastY;
       d.lastX = e.clientX;
@@ -686,6 +703,13 @@ export function SpritesPage() {
   const endDrag = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current;
     if (d && d.pointerId === e.pointerId) {
+      const totalMove = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if (totalMove < 4 && !isDragRef.current) {
+        dragRef.current = null;
+        return;
+      }
+      suppressCardClickRef.current = isDragRef.current;
+      isDragRef.current = false;
       dragRef.current = null;
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -811,9 +835,15 @@ export function SpritesPage() {
                     userSelect: "none",
                     WebkitUserSelect: "none",
                   }}
-                  onPointerDown={(e) => e.stopPropagation()}
                   onDragStart={(e) => e.preventDefault()}
-                  onClick={() => setOverlayUrl(src)}
+                  onClick={(e) => {
+                    if (suppressCardClickRef.current) {
+                      suppressCardClickRef.current = false;
+                      e.stopPropagation();
+                      return;
+                    }
+                    setOverlayUrl(src);
+                  }}
                   aria-label="Open card"
                 >
                   <SpritesGridThumb src={src} />
