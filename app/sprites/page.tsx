@@ -19,8 +19,6 @@ const MAX_SCALE = 4;
 const WHEEL_ZOOM_PIXEL_FACTOR = 0.002;
 /** At max zoom-out, visible span is at most this fraction of content (rest needs pan). */
 const MAX_VISIBLE_FRAC = 0.75;
-/** Initial view: aim for roughly this many column-pitches visible (about 2–3 cards). */
-const INITIAL_VISIBLE_COLS = 2.55;
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
@@ -324,7 +322,7 @@ function OverlayPreview({
             className="relative overflow-hidden"
             style={
               {
-                borderRadius: 6,
+                borderRadius: 12,
                 isolation: "isolate",
                 ["--hx" as string]: `${shine.px}%`,
                 ["--hy" as string]: `${shine.py}%`,
@@ -336,7 +334,7 @@ function OverlayPreview({
               src={url}
               alt=""
               className="relative z-0 block max-h-[min(72vh,800px)] max-w-full object-contain"
-              style={{ borderRadius: 6 }}
+              style={{ borderRadius: 12 }}
               draggable={false}
               onDragStart={(e) => e.preventDefault()}
             />
@@ -345,7 +343,7 @@ function OverlayPreview({
               aria-hidden
               className="pointer-events-none absolute inset-0 z-10"
               style={{
-                borderRadius: 6,
+                borderRadius: 12,
                 mixBlendMode: "soft-light",
                 opacity: 0.52,
                 background: `conic-gradient(from var(--spin) at var(--hx) var(--hy),
@@ -362,7 +360,7 @@ function OverlayPreview({
               aria-hidden
               className="pointer-events-none absolute inset-0 z-[11]"
               style={{
-                borderRadius: 6,
+                borderRadius: 12,
                 mixBlendMode: "screen",
                 opacity: 0.36,
                 background: `
@@ -442,11 +440,14 @@ export function SpritesPage() {
     if (urls.length === 0) return SCALE_ABS_MIN;
     const sx = vw / (MAX_VISIBLE_FRAC * canvasW);
     const sy = vh / (MAX_VISIBLE_FRAC * canvasH);
-    return Math.max(SCALE_ABS_MIN, sx, sy);
+    return Math.max(SCALE_ABS_MIN, Math.min(sx, sy));
   }, [canvasH, canvasW, urls.length, vh, vw]);
 
   /** Lower zoom bound used for gestures (never above `MAX_SCALE`). */
   const zoomMin = Math.min(minScale, MAX_SCALE);
+
+  const zoomMinRef = useRef(zoomMin);
+  zoomMinRef.current = zoomMin;
 
   const initialZoomApplied = useRef(false);
 
@@ -544,18 +545,17 @@ export function SpritesPage() {
 
     const sMin = Math.max(
       SCALE_ABS_MIN,
-      cw / (MAX_VISIBLE_FRAC * canvasW),
-      ch / (MAX_VISIBLE_FRAC * canvasH),
+      Math.min(
+        cw / (MAX_VISIBLE_FRAC * canvasW),
+        ch / (MAX_VISIBLE_FRAC * canvasH),
+      ),
     );
     const zMin = Math.min(sMin, MAX_SCALE);
+    const INIT_VISIBLE_CARDS = 2.5;
+    const INIT_MAX_SCALE = 1.4;
     const sInit = Math.min(
-      MAX_SCALE,
-      Math.max(
-        zMin,
-        sMin * 1.12,
-        cw / (INITIAL_VISIBLE_COLS * colPitch),
-        ch / (INITIAL_VISIBLE_COLS * colPitch),
-      ),
+      INIT_MAX_SCALE,
+      Math.max(zMin, cw / (INIT_VISIBLE_CARDS * colPitch)),
     );
     const c = clampPan(
       cw / 2 - (canvasW / 2) * sInit,
@@ -643,7 +643,7 @@ export function SpritesPage() {
       const t0y = tyRef.current;
       const delta = -normalizeWheelDeltaY(e);
       const factor = Math.exp(delta * WHEEL_ZOOM_PIXEL_FACTOR);
-      const s1 = clamp(s0 * factor, zoomMin, MAX_SCALE);
+      const s1 = clamp(s0 * factor, zoomMinRef.current, MAX_SCALE);
       if (s1 === s0) return;
       const wx = (localX - t0x) / s0;
       const wy = (localY - t0y) / s0;
@@ -657,7 +657,7 @@ export function SpritesPage() {
 
     el.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => el.removeEventListener("wheel", onWheel, { capture: true });
-  }, [canvasH, canvasW, vw, vh, zoomMin]);
+  }, [canvasH, canvasW, vw, vh]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -811,7 +811,7 @@ export function SpritesPage() {
       >
         {urls.length === 0 ? null : (
           <div
-            className="will-change-transform box-border"
+            className="box-border"
             style={{
               transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
               transformOrigin: "0 0",
