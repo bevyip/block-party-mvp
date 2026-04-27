@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { put } from "@vercel/blob";
 import sharp from "sharp";
+import { nextNumberedCardBasename } from "../lib/cardGallerySort";
+import { getAllCollectibleCardBasenames } from "./collectibleCardInventory";
 
 type ApiRes = {
   status: (code: number) => {
@@ -14,9 +16,6 @@ type Body = {
   imageBase64?: string;
 };
 
-function allocateFilename(): string {
-  return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.png`;
-}
 
 export default async function handler(
   req: { method?: string; body?: unknown },
@@ -61,7 +60,14 @@ export default async function handler(
     return;
   }
 
-  const filename = allocateFilename();
+  let filename: string;
+  try {
+    const basenames = await getAllCollectibleCardBasenames();
+    filename = nextNumberedCardBasename(basenames);
+  } catch {
+    res.status(500).json({ error: "Could not list existing cards" });
+    return;
+  }
 
   try {
     if (process.env.BLOB_READ_WRITE_TOKEN) {
