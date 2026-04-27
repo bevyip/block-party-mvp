@@ -3,8 +3,8 @@
  * Keep in sync with any server that lists the same folder.
  *
  * Do not import this module from `api/*.ts` — Vercel serverless can fail to bundle `../lib/`.
- * `api/cards-gallery.ts` duplicates sort/merge here; `api/collectibleCardInventory.ts` holds
- * `nextNumberedCardBasename` for uploads.
+ * `api/cards-gallery.ts` and `api/upload-collectible-card.ts` duplicate sort/merge and listing
+ * logic in-file so Vercel can bundle each route without `api/*.ts` sibling imports.
  *
  * Order: `CARD.png` first (index 0), then `CARD (1).png` … `CARD (n).png` ascending,
  * then legacy `upload-*.png` (by embedded timestamp), then any other names.
