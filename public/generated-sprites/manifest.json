@@ -31,11 +31,7 @@
         "description": "Simple, glowing ballet flats in bright pink (#ff5ecb) with a single cluster-shaped gem on each toe."
       },
       "themeEmoji": "✨",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
+      "states": ["idle", "walk", "special"],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -79,11 +75,7 @@
         "description": "Lightweight athletic shoes in brilliant white with pink (#ff5ecb) lacing and luminous yellow (#ffe600) accents on the soles, suggesting a swift, energetic gait."
       },
       "themeEmoji": "✨",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
+      "states": ["idle", "walk", "special"],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -127,11 +119,7 @@
         "description": "Delicate, low-heeled slippers adorned with a small, stylized leaf clasp, perfectly matching the romantic floral theme."
       },
       "themeEmoji": "🌹",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
+      "states": ["idle", "walk", "special"],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -175,11 +163,7 @@
         "description": "Sturdy, rounded yellow sneakers, designed to resemble the soft bottom bun of a hamburger."
       },
       "themeEmoji": "🍔",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
+      "states": ["idle", "walk", "special"],
       "hasPortrait": true,
       "customStateName": "special",
       "customSpec": {
@@ -198,11 +182,7 @@
       "object": "Abstract light cluster",
       "gender": "female",
       "themeEmoji": "✨",
-      "states": [
-        "idle",
-        "walk",
-        "special"
-      ],
+      "states": ["idle", "walk", "special"],
       "hasPortrait": true,
       "hair": {
         "style": "Voluminous clustered buns",

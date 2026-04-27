@@ -45,7 +45,6 @@ type OverlayPhase =
   | "hidden"
   | "detection"
   | "keywords"
-  | "tease"
   | "crystallizing"
   | "chamber_reveal"
   | "complete";
@@ -67,13 +66,15 @@ const SPIRIT_LINES = [
   "Preparing your character...",
 ];
 
-/** After last tease bubble: hold, then fade all tease text before crystallizing. */
-const TEASE_POST_BUBBLES_PAUSE_MS = 1000;
-const TEASE_TEXT_FADE_OUT_MS = 750;
+/** Keyword column text (and embedded canvas) crossfade to crystallizing. */
+const KEYWORDS_TO_CRYSTALL_FADE_MS = 500;
+/** Spirit line under the humanoid when entering crystallizing. */
+const CRYSTALLIZING_TEXT_FADE_IN_MS = 600;
 
 /**
  * If `stage3b_started` arrives while the map is still in detection / keywords /
- * tease, we queue the chamber transition until crystallizing is shown, then hold
+ * crystallizing (including the side speech-bubble beat), we queue the chamber
+ * transition until crystallizing is shown, then hold
  * this long so the crystallization beat is visible (pipeline tab can outpace the map).
  */
 const QUEUED_STAGE3B_CRYSTALLIZING_HOLD_MS = 3000;
@@ -85,6 +86,10 @@ const CRYSTALLIZING_TO_CHAMBER_FADE_MS = 550;
 const CHAMBER_FILLED_HOLD_MS = 480;
 /** Subtle fade of the three-chamber chrome before / while particles splay outward. */
 const CHAMBER_CHROME_FADE_OUT_MS = 720;
+
+const noopTeaseBubbles = () => {
+  /* Bubbles stay until add_to_party splay; no action when CharacterTease sequence ends. */
+};
 
 const hbStyles = `
 @keyframes mapHeartbeatPulse {
@@ -156,17 +161,23 @@ export default function MapOverlay({
   const stage2Ref = useRef<Stage2Payload | null>(null);
   /** Bump only on stage1 so `KeywordCascade` does not reset when stage2 arrives during a keyword hold. */
   const [stage1DataTick, setStage1DataTick] = useState(0);
-  /** Keyword cascade has finished (including colors row); may wait here for `stage2_complete` before tease. */
+  /** Keyword cascade has finished (including colors row); may wait here for `stage2_complete` before crystallizing. */
   const keywordsReadyForTeaseRef = useRef(false);
 
-  const [teaseLeaving, setTeaseLeaving] = useState(false);
-  /** After all speech bubbles: pause → fade tease copy out → then crystallizing. */
-  type TeaseEndSeq = null | "pause" | "fading";
-  const [teaseEndSeq, setTeaseEndSeq] = useState<TeaseEndSeq>(null);
-  const teaseEndSeqRef = useRef<TeaseEndSeq>(null);
-  useEffect(() => {
-    teaseEndSeqRef.current = teaseEndSeq;
-  }, [teaseEndSeq]);
+  /** Side speech bubbles only over the three-chamber (Stage 3B) view, not during crystallizing. */
+  const [chamberBubblesActive, setChamberBubblesActiveState] = useState(false);
+  const chamberBubblesActiveRef = useRef(false);
+  const setChamberBubblesActive = useCallback((next: boolean) => {
+    chamberBubblesActiveRef.current = next;
+    setChamberBubblesActiveState(next);
+  }, []);
+
+  /** Fading keyword UI out before switching to `crystallizing`. */
+  const [keywordsToCrystalLeaving, setKeywordsToCrystalLeaving] =
+    useState(false);
+  const pendingKeywordsCrystalFlushRef = useRef(false);
+  /** Fade speech bubbles in sync with particle splay (after third chamber is done). */
+  const [bubblesFadingWithSplay, setBubblesFadingWithSplay] = useState(false);
 
   const [chambersComplete, setChambersComplete] = useState(0);
   /** Roman numerals + rings fade after all three chambers fill. */
@@ -205,9 +216,9 @@ export default function MapOverlay({
   const prevOverlayPhaseRef = useRef<OverlayPhase>(overlayPhase);
 
   /**
-   * Pipeline may emit Stage 3A while the map is still in detection / keywords /
-   * tease. Hold crystallizing + tease-leave until tease bubbles finish; buffer
-   * the heartbeat if the API returns first.
+   * Pipeline may emit Stage 3A while the map is still in detection / keywords.
+   * Heartbeat is flushed when entering crystallizing (if 3A already finished) or
+   * from `stage3a_complete` while already on crystallizing.
    */
   const deferredStage3aIntroRef = useRef(false);
   const deferredStage3aHeartbeatRef = useRef(false);
@@ -340,10 +351,21 @@ export default function MapOverlay({
       if (overlayPhaseRef.current !== "crystallizing") return;
       setChambersComplete(0);
       goToOverlayPhase("chamber_reveal");
+      setChamberBubblesActive(true);
     }, QUEUED_STAGE3B_CRYSTALLIZING_HOLD_MS);
     pushTimer(id);
     return () => window.clearTimeout(id);
-  }, [overlayPhase, pushTimer, goToOverlayPhase]);
+  }, [overlayPhase, pushTimer, goToOverlayPhase, setChamberBubblesActive]);
+
+  /** When keywords end, play the deferred Stage 3A heartbeat if the API already finished during the cascade. */
+  const flushDeferredStage3aHeartbeatIfReady = useCallback(() => {
+    if (!deferredStage3aHeartbeatRef.current) return;
+    deferredStage3aIntroRef.current = false;
+    deferredStage3aHeartbeatRef.current = false;
+    setHeartbeatActive(true);
+    const id1 = window.setTimeout(() => setHeartbeatActive(false), 450);
+    pushTimer(id1);
+  }, [pushTimer]);
 
   const onPipelineEvent = useCallback(
     (event: PipelineStage) => {
@@ -354,7 +376,9 @@ export default function MapOverlay({
           deferredStage3aHeartbeatRef.current = false;
           pendingStage3bAfterCrystallizingRef.current = false;
           ownChamberSplayPendingRef.current = false;
-          setTeaseEndSeq(null);
+          setChamberBubblesActive(false);
+          setKeywordsToCrystalLeaving(false);
+          setBubblesFadingWithSplay(false);
           goToOverlayPhase("detection");
           setChambersComplete(0);
           setHandoffSplayExitActive(false);
@@ -375,21 +399,17 @@ export default function MapOverlay({
             keywordsReadyForTeaseRef.current &&
             overlayPhaseRef.current === "keywords"
           ) {
-            goToOverlayPhase("tease");
+            pendingKeywordsCrystalFlushRef.current = true;
+            setKeywordsToCrystalLeaving(true);
           }
           break;
         case "stage3a_started": {
           const ph = overlayPhaseRef.current;
-          if (ph === "detection" || ph === "keywords" || ph === "tease") {
+          if (ph === "detection" || ph === "keywords") {
             deferredStage3aIntroRef.current = true;
             break;
           }
           deferredStage3aIntroRef.current = false;
-          if (ph === "tease") {
-            setTeaseLeaving(true);
-            const id = window.setTimeout(() => setTeaseLeaving(false), 500);
-            pushTimer(id);
-          }
           if (ph !== "chamber_reveal" && ph !== "complete") {
             goToOverlayPhase("crystallizing");
           }
@@ -399,6 +419,16 @@ export default function MapOverlay({
           stage3aUrlRef.current = event.payload.stage3aUrl;
           if (deferredStage3aIntroRef.current) {
             deferredStage3aHeartbeatRef.current = true;
+            if (overlayPhaseRef.current === "crystallizing") {
+              deferredStage3aIntroRef.current = false;
+              deferredStage3aHeartbeatRef.current = false;
+              setHeartbeatActive(true);
+              const id1 = window.setTimeout(
+                () => setHeartbeatActive(false),
+                450,
+              );
+              pushTimer(id1);
+            }
             break;
           }
           setHeartbeatActive(true);
@@ -413,17 +443,15 @@ export default function MapOverlay({
             pendingStage3bAfterCrystallizingRef.current = false;
             setChambersComplete(0);
             goToOverlayPhase("chamber_reveal");
-          } else if (
-            ph === "detection" ||
-            ph === "keywords" ||
-            ph === "tease"
-          ) {
+            setChamberBubblesActive(true);
+          } else if (ph === "detection" || ph === "keywords") {
             pendingStage3bAfterCrystallizingRef.current = true;
           } else if (ph === "hidden" || ph === "complete") {
             /** Map opened mid-run or chamber already done — no narrative queue to honor. */
             pendingStage3bAfterCrystallizingRef.current = false;
             setChambersComplete(0);
             goToOverlayPhase("chamber_reveal");
+            setChamberBubblesActive(true);
           }
           break;
         }
@@ -445,6 +473,7 @@ export default function MapOverlay({
             }
           } else if (overlayPhaseRef.current === "complete") {
             goToOverlayPhase("chamber_reveal");
+            setChamberBubblesActive(true);
           }
           break;
         }
@@ -453,12 +482,13 @@ export default function MapOverlay({
           deferredStage3aIntroRef.current = false;
           deferredStage3aHeartbeatRef.current = false;
           pendingStage3bAfterCrystallizingRef.current = false;
-          setTeaseEndSeq(null);
+          setChamberBubblesActive(false);
+          setKeywordsToCrystalLeaving(false);
+          setBubblesFadingWithSplay(false);
           goToOverlayPhase("hidden");
           stage1Ref.current = null;
           stage2Ref.current = null;
           setChambersComplete(0);
-          setTeaseLeaving(false);
           setHeartbeatActive(false);
           setHandoffSplayExitActive(false);
           setLocalSplayActive(false);
@@ -469,6 +499,9 @@ export default function MapOverlay({
           stage3aUrlRef.current = null;
           break;
         case "add_to_party_splay":
+          if (chamberBubblesActiveRef.current) {
+            setBubblesFadingWithSplay(true);
+          }
           if (ownsHandoff && ownChamberSplayPendingRef.current) {
             ownChamberSplayPendingRef.current = false;
             setHandoffSplayExitActive(true);
@@ -490,7 +523,13 @@ export default function MapOverlay({
           break;
       }
     },
-    [pushTimer, ownsHandoff, goToOverlayPhase],
+    [
+      pushTimer,
+      ownsHandoff,
+      goToOverlayPhase,
+      setChamberBubblesActive,
+      flushDeferredStage3aHeartbeatIfReady,
+    ],
   );
 
   useMapChannel(onPipelineEvent);
@@ -515,41 +554,39 @@ export default function MapOverlay({
   const onKeywordsCascadeComplete = useCallback(() => {
     keywordsReadyForTeaseRef.current = true;
     if (stage2Ref.current) {
-      setTeaseEndSeq(null);
-      goToOverlayPhase("tease");
+      pendingKeywordsCrystalFlushRef.current = true;
+      setKeywordsToCrystalLeaving(true);
     }
-  }, [goToOverlayPhase]);
+  }, []);
 
-  const finalizeTeaseToCrystallizing = useCallback(() => {
-    if (overlayPhaseRef.current !== "tease") return;
-    setTeaseEndSeq(null);
+  const completeKeywordsToCrystallizing = useCallback(() => {
+    setKeywordsToCrystalLeaving(false);
     goToOverlayPhase("crystallizing");
-    const pulse = deferredStage3aHeartbeatRef.current;
-    deferredStage3aIntroRef.current = false;
-    deferredStage3aHeartbeatRef.current = false;
-    if (pulse) {
-      setHeartbeatActive(true);
-      const id1 = window.setTimeout(() => setHeartbeatActive(false), 450);
-      pushTimer(id1);
+    if (pendingKeywordsCrystalFlushRef.current) {
+      flushDeferredStage3aHeartbeatIfReady();
+      pendingKeywordsCrystalFlushRef.current = false;
     }
-  }, [pushTimer, goToOverlayPhase]);
+  }, [goToOverlayPhase, flushDeferredStage3aHeartbeatIfReady]);
 
-  const handleTeaseAllBubblesShown = useCallback(() => {
-    setTeaseEndSeq("pause");
-    const id = window.setTimeout(() => {
-      setTeaseEndSeq("fading");
-    }, TEASE_POST_BUBBLES_PAUSE_MS);
-    pushTimer(id);
-  }, [pushTimer]);
-
-  const onTeaseTextFadeTransitionEnd = useCallback(
+  const onKeywordsToCrystalTransitionEnd = useCallback(
     (e: React.TransitionEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget) return;
       if (e.propertyName !== "opacity") return;
-      if (teaseEndSeqRef.current !== "fading") return;
-      finalizeTeaseToCrystallizing();
+      if (!keywordsToCrystalLeaving) return;
+      completeKeywordsToCrystallizing();
     },
-    [finalizeTeaseToCrystallizing],
+    [keywordsToCrystalLeaving, completeKeywordsToCrystallizing],
+  );
+
+  const onBubblesSplayFadeTransitionEnd = useCallback(
+    (e: React.TransitionEvent<HTMLDivElement>) => {
+      if (e.target !== e.currentTarget) return;
+      if (e.propertyName !== "opacity") return;
+      if (!bubblesFadingWithSplay) return;
+      setBubblesFadingWithSplay(false);
+      setChamberBubblesActive(false);
+    },
+    [bubblesFadingWithSplay, setChamberBubblesActive],
   );
 
   const keywordRows = useMemo(
@@ -565,15 +602,13 @@ export default function MapOverlay({
     return null;
   }
 
-  /** Crystallizing keeps the same cycling morphs as tease/keywords; only spirit copy changes. */
+  /** Crystallizing keeps the same cycling morphs as keywords; only spirit copy changes. */
   const particlePhase: React.ComponentProps<typeof ParticleCanvas>["phase"] =
     handoffSplayExitActive || localSplayActive
       ? "chamber_reveal"
       : overlayPhase === "detection"
         ? "drift"
-        : overlayPhase === "keywords" ||
-            overlayPhase === "tease" ||
-            overlayPhase === "crystallizing"
+        : overlayPhase === "keywords" || overlayPhase === "crystallizing"
           ? "assembling"
           : "chamber_reveal";
 
@@ -590,7 +625,6 @@ export default function MapOverlay({
   /** Keywords+ : opaque backdrop so the map never shows through (detection stays over the live map). */
   const showSolidBackdrop =
     overlayPhase === "keywords" ||
-    overlayPhase === "tease" ||
     overlayPhase === "crystallizing" ||
     overlayPhase === "chamber_reveal" ||
     overlayPhase === "complete" ||
@@ -651,6 +685,7 @@ export default function MapOverlay({
 
         {overlayPhase === "keywords" && (
           <div
+            onTransitionEnd={onKeywordsToCrystalTransitionEnd}
             style={{
               position: "absolute",
               inset: 0,
@@ -664,6 +699,8 @@ export default function MapOverlay({
               maxHeight: "100dvh",
               overflowX: "hidden",
               overflowY: "auto",
+              opacity: keywordsToCrystalLeaving ? 0 : 1,
+              transition: `opacity ${KEYWORDS_TO_CRYSTALL_FADE_MS}ms ease`,
             }}
           >
             <KeywordCascade
@@ -692,32 +729,6 @@ export default function MapOverlay({
             />
           </>
         )}
-        {(overlayPhase === "tease" || teaseLeaving) && (
-          <div
-            onTransitionEnd={onTeaseTextFadeTransitionEnd}
-            style={{
-              position: "absolute",
-              inset: 0,
-              opacity: teaseLeaving || teaseEndSeq === "fading" ? 0 : 1,
-              transition: teaseLeaving
-                ? "opacity 500ms ease"
-                : teaseEndSeq === "fading"
-                  ? `opacity ${TEASE_TEXT_FADE_OUT_MS}ms ease`
-                  : teaseEndSeq === "pause"
-                    ? "none"
-                    : "opacity 0.2s ease",
-            }}
-          >
-            <CharacterTease
-              paletteColors={s2?.paletteColors ?? []}
-              themeWords={s2?.themeWords ?? []}
-              silhouetteHint={s2?.silhouetteHint ?? ""}
-              peekWords={s2?.peekWords}
-              keywords={keywordRows}
-              onComplete={handleTeaseAllBubblesShown}
-            />
-          </div>
-        )}
         {(overlayPhase === "crystallizing" || spiritExitText !== null) && (
           <p
             style={{
@@ -738,7 +749,7 @@ export default function MapOverlay({
               transition:
                 spiritExitText !== null
                   ? `opacity ${CRYSTALLIZING_TO_CHAMBER_FADE_MS}ms ease`
-                  : "opacity 1s ease",
+                  : `opacity ${CRYSTALLIZING_TEXT_FADE_IN_MS}ms ease`,
               textAlign: "center",
               maxWidth: "90vw",
             }}
@@ -752,6 +763,7 @@ export default function MapOverlay({
             style={{
               position: "absolute",
               inset: 0,
+              zIndex: 3,
               pointerEvents: "none",
               opacity: chamberRevealFadeIn ? 1 : 0,
               transition: `opacity ${CRYSTALLIZING_TO_CHAMBER_FADE_MS}ms ease`,
@@ -770,6 +782,32 @@ export default function MapOverlay({
             </div>
           </div>
         )}
+        {(overlayPhase === "chamber_reveal" || overlayPhase === "complete") &&
+          chamberBubblesActive && (
+            <div
+              onTransitionEnd={onBubblesSplayFadeTransitionEnd}
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 2,
+                opacity: bubblesFadingWithSplay ? 0 : 1,
+                transition: `opacity ${
+                  bubblesFadingWithSplay ? ADD_TO_PARTY_SPLAY_MS : 200
+                }ms ease`,
+              }}
+            >
+              <CharacterTease
+                paletteColors={s2?.paletteColors ?? []}
+                themeWords={s2?.themeWords ?? []}
+                silhouetteHint={s2?.silhouetteHint ?? ""}
+                peekWords={s2?.peekWords}
+                keywords={keywordRows}
+                onComplete={noopTeaseBubbles}
+                slowPacing
+                omitKeywordRails
+              />
+            </div>
+          )}
       </div>
       {showAddToPartyOverlay && addToPartyStage3aUrl && (
         <AddToPartyOverlay

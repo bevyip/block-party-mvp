@@ -26,8 +26,8 @@ import {
 } from "../../lib/generatedSprites";
 import {
   buildPeekWordsFromBrief,
+  dedupePhrasesPreserveOrder,
   pickRandomTeasePhrases,
-  TEASE_BUBBLE_COUNT,
 } from "../../lib/briefPeekWords";
 import { resolvePegSwatchHex } from "../../lib/pegSwatchColors";
 import type { AnimState, DesignBrief, Interpretation } from "./types";
@@ -657,6 +657,120 @@ export default function PipelinePage() {
     }
   }, []);
 
+  const runGenerate = useCallback(
+    async (opts?: {
+      briefOverride?: DesignBrief;
+      interpretationOverride?: Interpretation;
+    }) => {
+      const b = opts?.briefOverride ?? brief;
+      const i = opts?.interpretationOverride ?? interpretation;
+      if (!b || !i) return;
+      setStage3bPanelVisible(false);
+      setS3Loading(true);
+      setS3Error(null);
+      try {
+        broadcast({ stage: "stage3a_started" });
+        const { rawBase64, cleanedDataUrl } = await generateStage3AImage(
+          b,
+          i,
+        );
+        setFourViewRawBase64(rawBase64);
+        setSpriteImageUrl(cleanedDataUrl);
+        broadcast({
+          stage: "stage3a_complete",
+          payload: { stage3aUrl: cleanedDataUrl },
+        });
+        setAnimStateUrls(emptyAnimUrls());
+        setAnimStatePhase(emptyAnimPhase());
+        setAnimErrors({});
+        setCustomSpec(null);
+        setAnimApprovals(emptyAnimApproved(), true);
+        setSaveState("idle");
+        setSavedId(null);
+      } catch (e) {
+        setS3Error(e instanceof Error ? e.message : "Stage 3 failed");
+      } finally {
+        setS3Loading(false);
+      }
+    },
+    [brief, interpretation],
+  );
+
+  const runBrief = useCallback(async (interp?: Interpretation | null) => {
+    const source = interp ?? interpretation;
+    if (!source) return;
+    setS2Loading(true);
+    setS2Error(null);
+    try {
+      const res = await fetch("/api/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interpretation: source }),
+      });
+      const data = (await res.json()) as {
+        designBrief?: DesignBrief;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!data.designBrief)
+        throw new Error("Missing design brief in response");
+      setBrief(data.designBrief);
+      {
+        const b = data.designBrief;
+        const paletteColors = uniqueColors(
+          [
+            b.hair?.color,
+            b.torso?.primary_color,
+            b.torso?.secondary_color,
+            b.legs?.color,
+            b.shoes?.color,
+          ].filter((c): c is string => Boolean(c)),
+        );
+        const themeWords = b.theme_elements ?? [];
+        const silhouetteHint =
+          (b.hair.description ?? "").trim().split(/\s+/)[0] ?? "";
+        const trimmedSpeech = Array.isArray(b.speech_tease_phrases)
+          ? b.speech_tease_phrases
+              .map((s) => String(s).trim())
+              .filter((s) => s.length > 0)
+          : [];
+        const builtFallback = buildPeekWordsFromBrief(b);
+        const peekWords =
+          trimmedSpeech.length > 0
+            ? dedupePhrasesPreserveOrder(trimmedSpeech)
+            : builtFallback.length > 0
+              ? pickRandomTeasePhrases(builtFallback, builtFallback.length)
+              : ["—"];
+        broadcast({
+          stage: "stage2_complete",
+          payload: {
+            paletteColors,
+            themeWords,
+            silhouetteHint,
+            peekWords,
+          },
+        });
+      }
+      setSpriteImageUrl(null);
+      setFourViewRawBase64(null);
+      setAnimStateUrls(emptyAnimUrls());
+      setAnimStatePhase(emptyAnimPhase());
+      setAnimErrors({});
+      setCustomSpec(null);
+      setAnimApprovals(emptyAnimApproved(), true);
+      setStage3bPanelVisible(false);
+      setS3Error(null);
+      void runGenerate({
+        briefOverride: data.designBrief,
+        interpretationOverride: source,
+      });
+    } catch (e) {
+      setS2Error(e instanceof Error ? e.message : "Stage 2 failed");
+    } finally {
+      setS2Loading(false);
+    }
+  }, [interpretation, runGenerate]);
+
   const runInterpret = useCallback(async () => {
     if (!imageBase64 || !mimeType) return;
     setShowPipelineInput(false);
@@ -698,113 +812,13 @@ export default function PipelinePage() {
       setStage3bPanelVisible(false);
       setS2Error(null);
       setS3Error(null);
+      void runBrief(data.interpretation);
     } catch (e) {
       setS1Error(e instanceof Error ? e.message : "Stage 1 failed");
     } finally {
       setS1Loading(false);
     }
-  }, [imageBase64, mimeType]);
-
-  const runBrief = useCallback(async () => {
-    if (!interpretation) return;
-    setS2Loading(true);
-    setS2Error(null);
-    try {
-      const res = await fetch("/api/brief", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interpretation }),
-      });
-      const data = (await res.json()) as {
-        designBrief?: DesignBrief;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      if (!data.designBrief)
-        throw new Error("Missing design brief in response");
-      setBrief(data.designBrief);
-      {
-        const b = data.designBrief;
-        const paletteColors = uniqueColors(
-          [
-            b.hair?.color,
-            b.torso?.primary_color,
-            b.torso?.secondary_color,
-            b.legs?.color,
-            b.shoes?.color,
-          ].filter((c): c is string => Boolean(c)),
-        );
-        const themeWords = b.theme_elements ?? [];
-        const silhouetteHint =
-          (b.hair.description ?? "").trim().split(/\s+/)[0] ?? "";
-        const trimmedSpeech = Array.isArray(b.speech_tease_phrases)
-          ? b.speech_tease_phrases
-              .map((s) => String(s).trim())
-              .filter((s) => s.length > 0)
-          : [];
-        const peekWords =
-          trimmedSpeech.length >= TEASE_BUBBLE_COUNT
-            ? pickRandomTeasePhrases(trimmedSpeech, TEASE_BUBBLE_COUNT)
-            : pickRandomTeasePhrases(
-                buildPeekWordsFromBrief(b),
-                TEASE_BUBBLE_COUNT,
-              );
-        broadcast({
-          stage: "stage2_complete",
-          payload: {
-            paletteColors,
-            themeWords,
-            silhouetteHint,
-            peekWords,
-          },
-        });
-      }
-      setSpriteImageUrl(null);
-      setFourViewRawBase64(null);
-      setAnimStateUrls(emptyAnimUrls());
-      setAnimStatePhase(emptyAnimPhase());
-      setAnimErrors({});
-      setCustomSpec(null);
-      setAnimApprovals(emptyAnimApproved(), true);
-      setStage3bPanelVisible(false);
-      setS3Error(null);
-    } catch (e) {
-      setS2Error(e instanceof Error ? e.message : "Stage 2 failed");
-    } finally {
-      setS2Loading(false);
-    }
-  }, [interpretation]);
-
-  const runGenerate = useCallback(async () => {
-    if (!brief || !interpretation) return;
-    setStage3bPanelVisible(false);
-    setS3Loading(true);
-    setS3Error(null);
-    try {
-      broadcast({ stage: "stage3a_started" });
-      const { rawBase64, cleanedDataUrl } = await generateStage3AImage(
-        brief,
-        interpretation,
-      );
-      setFourViewRawBase64(rawBase64);
-      setSpriteImageUrl(cleanedDataUrl);
-      broadcast({
-        stage: "stage3a_complete",
-        payload: { stage3aUrl: cleanedDataUrl },
-      });
-      setAnimStateUrls(emptyAnimUrls());
-      setAnimStatePhase(emptyAnimPhase());
-      setAnimErrors({});
-      setCustomSpec(null);
-      setAnimApprovals(emptyAnimApproved(), true);
-      setSaveState("idle");
-      setSavedId(null);
-    } catch (e) {
-      setS3Error(e instanceof Error ? e.message : "Stage 3 failed");
-    } finally {
-      setS3Loading(false);
-    }
-  }, [brief, interpretation]);
+  }, [imageBase64, mimeType, runBrief]);
 
   const tryAnother = useCallback(() => {
     setShowPipelineInput(true);
@@ -1420,16 +1434,18 @@ export default function PipelinePage() {
               compact={rc}
               className="border-0 bg-transparent p-0"
             >
-              {!brief && (
-                <button
-                  type="button"
-                  disabled={s2Loading}
-                  onClick={() => void runBrief()}
-                  className={primaryRailBtn}
+              {!brief && s2Loading ? (
+                <p
+                  className={
+                    rc
+                      ? "mt-3 text-[10px] text-amber-200/90"
+                      : "mt-4 text-xs text-amber-200/90"
+                  }
+                  role="status"
                 >
-                  Generate character brief
-                </button>
-              )}
+                  Designing character brief…
+                </p>
+              ) : null}
               {s2Error && (
                 <div className={errBoxClass}>
                   <p className="font-medium">Stage 2 error</p>
@@ -1512,16 +1528,18 @@ export default function PipelinePage() {
                   </dd>
                 </div>
               </dl>
-              {!spriteImageUrl && (
-                <button
-                  type="button"
-                  disabled={s3Loading}
-                  onClick={() => void runGenerate()}
-                  className={primaryRailBtn}
+              {!spriteImageUrl && s3Loading ? (
+                <p
+                  className={
+                    rc
+                      ? "mt-3 text-[10px] text-amber-200/90"
+                      : "mt-4 text-xs text-amber-200/90"
+                  }
+                  role="status"
                 >
-                  Generate sprite
-                </button>
-              )}
+                  Generating 4-view character…
+                </p>
+              ) : null}
               {s3Error && (
                 <div className={errBoxClass}>
                   <p className="font-medium">Stage 3A error</p>

@@ -24,8 +24,6 @@ export async function generateStage3AImage(
   if (!raw || typeof raw !== "string") {
     throw new Error("No image in response");
   }
-  const cleanedDataUrl = await removeBackground(
-    `data:image/png;base64,${raw}`,
-  );
+  const cleanedDataUrl = await removeBackground(`data:image/png;base64,${raw}`);
   return { rawBase64: raw, cleanedDataUrl };
 }

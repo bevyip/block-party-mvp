@@ -1,11 +1,32 @@
 import type { DesignBrief } from "../app/pipeline/types";
 
-/** How many speech bubbles the map tease shows. */
+/** Default cap when a caller does not pass a `count` to `pickRandomTeasePhrases`. */
 export const TEASE_BUBBLE_COUNT = 8;
+
+/**
+ * Trim, drop empties, dedupe (case-insensitive) while preserving first-seen order.
+ * Used for `speech_tease_phrases` from the API so the map can show the full set.
+ */
+export function dedupePhrasesPreserveOrder(
+  phrases: readonly string[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of phrases) {
+    const t = String(raw).replace(/\s+/g, " ").trim();
+    if (t.length === 0) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
 
 /**
  * Shuffle a copy of `phrases` and return up to `count` items (no repeats).
  * If there are fewer than `count` phrases, returns all of them (caller may pad).
+ * Pass a large `count` (e.g. `phrases.length`) to shuffle the full list.
  */
 export function pickRandomTeasePhrases(
   phrases: readonly string[],

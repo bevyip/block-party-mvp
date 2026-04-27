@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  dedupePhrasesPreserveOrder,
   pickRandomTeasePhrases,
-  TEASE_BUBBLE_COUNT,
 } from "../../lib/briefPeekWords";
 import { resolvePegSwatchHex } from "../../lib/pegSwatchColors";
 import DecryptedText from "../DecryptedText";
@@ -29,6 +29,16 @@ export interface CharacterTeaseProps {
    * Map overlay omits this — `ParticleCanvas` is fullscreen behind this component.
    */
   centerCanvas?: React.ReactNode;
+  /**
+   * Stretches per-bubble timing so copy stays readable during long waits (e.g. map
+   * three-chamber / Stage 3B approval beat).
+   */
+  slowPacing?: boolean;
+  /**
+   * Map: speech bubbles only on the sides of the figure — no frozen keyword columns
+   * (those belong to the keywords phase only).
+   */
+  omitKeywordRails?: boolean;
 }
 
 /** Same as `KeywordCascade` keyword rails — must not overlap tease columns. */
@@ -85,27 +95,37 @@ type Phase = { kind: "item"; index: number } | { kind: "done" };
 
 type SlotAlign = "left" | "right";
 
-/** Four stacked anchors per side (eight bubbles total, L/R from even/odd index). */
-const TEASE_SIDE_BUBBLE_POSITIONS = [
-  { x: 50, y: 12 },
-  { x: 50, y: 34 },
-  { x: 50, y: 56 },
-  { x: 50, y: 78 },
-] as const;
+/** Distribute N bubbles vertically in a side column, inset from top/bottom (avoids edge clipping). */
+function yPercentForSlot(index: number, count: number): number {
+  if (count <= 0) return 50;
+  if (count === 1) return 50;
+  const m = count > 16 ? 2 : count > 10 ? 3.5 : 5;
+  return m + (index / (count - 1)) * (100 - 2 * m);
+}
 
-/** Always eight lines: random pick when `themeWords` has 8+; else cycle with hint. */
-function buildEightTeaseLines(themeWords: string[], silhouetteHint: string): string[] {
+const FALLBACK_MIN_TEASE = 8;
+
+/** When a new bubble appears, existing anchors’ `top` % changes — ease that motion. */
+const BUBBLE_STACK_TRANSITION = "top 0.42s ease";
+
+/** When no API peek list: theme + hint, shuffle when possible; else pad to 8. */
+function buildThemeFallbackTeaseLines(
+  themeWords: string[],
+  silhouetteHint: string,
+): string[] {
   const words = themeWords.map((w) => w.trim()).filter(Boolean);
   const hint = silhouetteHint.trim();
   const base =
     hint.length > 0 ? [...words, hint] : words.length > 0 ? [...words] : ["—"];
-  if (base.length >= TEASE_BUBBLE_COUNT) {
-    return pickRandomTeasePhrases(base, TEASE_BUBBLE_COUNT);
+  if (base.length === 0) return ["—"];
+  if (base.length < FALLBACK_MIN_TEASE) {
+    const cycled: string[] = [];
+    for (let i = 0; i < FALLBACK_MIN_TEASE; i++) {
+      cycled.push(base[i % base.length]!);
+    }
+    return pickRandomTeasePhrases(cycled, cycled.length);
   }
-  const out: string[] = [];
-  for (let i = 0; i < TEASE_BUBBLE_COUNT; i++)
-    out.push(base[i % base.length]!);
-  return out;
+  return pickRandomTeasePhrases(base, base.length);
 }
 
 function titleTextAlign(slot: SlotAlign): React.CSSProperties["textAlign"] {
@@ -275,9 +295,11 @@ const BUBBLE_TEXT = "#1a1917";
 function TeaseSpeechBubble({
   text,
   sizeMul,
+  compact = false,
 }: {
   text: string;
   sizeMul: number;
+  compact?: boolean;
 }) {
   const halfW = 9;
   const height = 10;
@@ -291,18 +313,23 @@ function TeaseSpeechBubble({
     return () => window.clearTimeout(t);
   }, [text]);
 
-  const fontSize = "clamp(0.85rem, 2vw, 1.1rem)";
+  const fontSize = compact
+    ? "clamp(0.6rem, 1.4vw, 0.9rem)"
+    : "clamp(0.75rem, 1.8vw, 1.02rem)";
   const displayText = teaseDisplayLower(text);
 
   const innerTypo: React.CSSProperties = {
-    display: "inline-block",
-    whiteSpace: "nowrap",
+    display: "block",
+    whiteSpace: "normal",
+    maxWidth: "100%",
     fontSize,
     fontWeight: 700,
     color: BUBBLE_TEXT,
-    lineHeight: 1.35,
+    lineHeight: 1.3,
     textAlign: "center",
     textTransform: "lowercase",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
     transform: `scale(${sizeMul})`,
     transformOrigin: "center center",
   };
@@ -311,9 +338,9 @@ function TeaseSpeechBubble({
     <div
       style={{
         position: "relative",
-        display: "inline-block",
-        width: "max-content",
-        maxWidth: "none",
+        display: "block",
+        width: "100%",
+        maxWidth: "min(100%, 12rem, 32vw, 20rem)",
         boxSizing: "border-box",
         background: BUBBLE_FILL,
         borderRadius: "clamp(4px, 0.9vmin, 7px)",
@@ -378,6 +405,8 @@ export default function CharacterTease({
   onComplete: _onComplete,
   keywords,
   centerCanvas,
+  slowPacing = false,
+  omitKeywordRails = false,
 }: CharacterTeaseProps) {
   const figure = useOverlayFigureLayout();
   const canvasSize = particleCanvasSize(figure.R);
@@ -385,15 +414,25 @@ export default function CharacterTease({
   const allItems = useMemo(() => {
     const usePeek =
       Array.isArray(peekWords) && peekWords.some((s) => s.trim().length > 0);
-    if (usePeek) return buildEightTeaseLines(peekWords!, "");
-    return buildEightTeaseLines(themeWords, silhouetteHint);
+    if (usePeek) return dedupePhrasesPreserveOrder(peekWords!);
+    return buildThemeFallbackTeaseLines(themeWords, silhouetteHint);
   }, [peekWords, themeWords, silhouetteHint]);
+
+  const allItemsKey = useMemo(() => allItems.join("\0"), [allItems]);
 
   const [phase, setPhase] = useState<Phase>(
     allItems.length > 0 ? { kind: "item", index: 0 } : { kind: "done" },
   );
 
   const teaseDoneNotifiedRef = useRef(false);
+  useEffect(() => {
+    setPhase(
+      allItems.length > 0 ? { kind: "item", index: 0 } : { kind: "done" },
+    );
+    teaseDoneNotifiedRef.current = false;
+  }, [allItemsKey]);
+  const compactBubbles = allItems.length > 10;
+
   useEffect(() => {
     if (phase.kind !== "done") {
       teaseDoneNotifiedRef.current = false;
@@ -413,7 +452,8 @@ export default function CharacterTease({
     const current = allItems[phase.index];
     if (current == null) return undefined;
 
-    const holdMs = teaseItemHoldMs(current, wordTickMs);
+    const paceMul = slowPacing ? 2.55 : 1;
+    const holdMs = Math.round(teaseItemHoldMs(current, wordTickMs) * paceMul);
 
     const t = window.setTimeout(() => {
       setPhase((prev) => {
@@ -426,7 +466,7 @@ export default function CharacterTease({
     }, holdMs);
 
     return () => window.clearTimeout(t);
-  }, [phase, allItems, wordTickMs]);
+  }, [phase, allItems, wordTickMs, slowPacing]);
 
   const visibleCount =
     phase.kind === "item" ? phase.index + 1 : allItems.length;
@@ -440,6 +480,18 @@ export default function CharacterTease({
 
   const leftKeywordRows = keywords.slice(0, 3);
   const rightKeywordRows = keywords.slice(3, 5);
+
+  const centerSlot = (
+    <div
+      style={{
+        width: canvasSize,
+        height: canvasSize,
+        flexShrink: 0,
+      }}
+    >
+      {centerCanvas ?? null}
+    </div>
+  );
 
   return (
     <div
@@ -478,47 +530,46 @@ export default function CharacterTease({
             maxWidth: TEASE_COL_MAX,
             alignSelf: "center",
             height: canvasSize,
-            overflow: "visible",
+            maxHeight: "min(100dvh, 100%)",
+            overflow: "hidden",
           }}
         >
           {leftItems.map((w, bi) => {
-            const pos =
-              TEASE_SIDE_BUBBLE_POSITIONS[bi] ?? TEASE_SIDE_BUBBLE_POSITIONS[0];
-            const globalIdx = bi * 2;
+            const n = leftItems.length;
             return (
               <div
-                key={`tl-${globalIdx}`}
+                key={`tl-${bi}`}
                 style={{
                   position: "absolute",
-                  left: `${pos.x}%`,
-                  top: `${pos.y}%`,
+                  left: "50%",
+                  top: `${yPercentForSlot(bi, n)}%`,
                   transform: "translate(-50%, -50%)",
-                  width: "max-content",
-                  maxWidth: "none",
+                  transition: BUBBLE_STACK_TRANSITION,
+                  width: "100%",
+                  maxWidth: "100%",
+                  padding: "0 2px",
+                  boxSizing: "border-box",
                 }}
               >
                 <TeaseSpeechBubble
                   text={w}
-                  sizeMul={teaseBubbleSizeMul(globalIdx)}
+                  sizeMul={teaseBubbleSizeMul(bi * 2)}
+                  compact={compactBubbles}
                 />
               </div>
             );
           })}
         </div>
 
-        <KeywordSnapshotRail rows={leftKeywordRows} slot="left" />
+        {omitKeywordRails ? null : (
+          <KeywordSnapshotRail rows={leftKeywordRows} slot="left" />
+        )}
 
-        <div
-          style={{
-            width: canvasSize,
-            height: canvasSize,
-            flexShrink: 0,
-          }}
-        >
-          {centerCanvas ?? null}
-        </div>
+        {centerSlot}
 
-        <KeywordSnapshotRail rows={rightKeywordRows} slot="right" />
+        {omitKeywordRails ? null : (
+          <KeywordSnapshotRail rows={rightKeywordRows} slot="right" />
+        )}
 
         <div
           style={{
@@ -528,28 +579,31 @@ export default function CharacterTease({
             maxWidth: TEASE_COL_MAX,
             alignSelf: "center",
             height: canvasSize,
-            overflow: "visible",
+            maxHeight: "min(100dvh, 100%)",
+            overflow: "hidden",
           }}
         >
           {rightItems.map((w, bi) => {
-            const pos =
-              TEASE_SIDE_BUBBLE_POSITIONS[bi] ?? TEASE_SIDE_BUBBLE_POSITIONS[0];
-            const globalIdx = bi * 2 + 1;
+            const n = rightItems.length;
             return (
               <div
-                key={`tr-${globalIdx}`}
+                key={`tr-${bi}`}
                 style={{
                   position: "absolute",
-                  left: `${pos.x}%`,
-                  top: `${pos.y}%`,
+                  left: "50%",
+                  top: `${yPercentForSlot(bi, n)}%`,
                   transform: "translate(-50%, -50%)",
-                  width: "max-content",
-                  maxWidth: "none",
+                  transition: BUBBLE_STACK_TRANSITION,
+                  width: "100%",
+                  maxWidth: "100%",
+                  padding: "0 2px",
+                  boxSizing: "border-box",
                 }}
               >
                 <TeaseSpeechBubble
                   text={w}
-                  sizeMul={teaseBubbleSizeMul(globalIdx)}
+                  sizeMul={teaseBubbleSizeMul(bi * 2 + 1)}
+                  compact={compactBubbles}
                 />
               </div>
             );

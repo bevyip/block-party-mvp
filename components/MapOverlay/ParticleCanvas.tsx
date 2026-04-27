@@ -728,6 +728,20 @@ function sectorFor(ny: number): 0 | 1 | 2 {
   return 2;
 }
 
+/** `desiredSilhouetteTightness` when `chambersComplete === 2` — height compact ramps from here to tightness 3. */
+const SILHOUETTE_TIGHTNESS_AT_CHAMBER2 = 2.58;
+/** Y scale at full humanoid (tightness 3): shorter than chamber-2 lock so the figure reads denser and smaller. */
+const SILHOUETTE_FULL_HUMANOID_HEIGHT_MUL = 0.74;
+
+function silhouetteHeightCompactMul(tightness: number): number {
+  const span = 3 - SILHOUETTE_TIGHTNESS_AT_CHAMBER2;
+  if (span <= 0) return 1;
+  const k = smoothstep01(
+    clamp((tightness - SILHOUETTE_TIGHTNESS_AT_CHAMBER2) / span, 0, 1),
+  );
+  return 1 - (1 - SILHOUETTE_FULL_HUMANOID_HEIGHT_MUL) * k;
+}
+
 /**
  * Silhouette tightness 0…3 (may be fractional): crystallizing = loosest;
  * chamber_reveal tightens by `chambersComplete`; 3 = full humanoid.
@@ -742,7 +756,7 @@ function desiredSilhouetteTightness(
   if (phase === "chamber_reveal") {
     if (chambersComplete === 0) return 0.88;
     if (chambersComplete === 1) return 1.78;
-    if (chambersComplete === 2) return 2.58;
+    if (chambersComplete === 2) return SILHOUETTE_TIGHTNESS_AT_CHAMBER2;
     return 3;
   }
   return 0;
@@ -811,6 +825,9 @@ function silhouetteRelaxedTarget(
   const wideJ =
     (deterministic01(i, 504) - 0.5) * 2 * loose * loose * viewW * 0.118;
   x += wideJ;
+
+  const hm = silhouetteHeightCompactMul(tightness);
+  y = cy + (y - cy) * hm;
 
   const m = viewportParticleMargin(viewW, viewH);
   x = clamp(x, m, viewW - m);
