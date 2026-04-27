@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { put } from "@vercel/blob";
 import sharp from "sharp";
-import { nextNumberedCardBasename } from "../lib/cardGallerySort";
-import { getAllCollectibleCardBasenames } from "./collectibleCardInventory";
+import {
+  getAllCollectibleCardBasenames,
+  nextNumberedCardBasename,
+} from "./collectibleCardInventory";
 
 type ApiRes = {
   status: (code: number) => {

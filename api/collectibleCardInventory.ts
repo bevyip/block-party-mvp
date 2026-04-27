@@ -90,3 +90,22 @@ export async function getAllCollectibleCardBasenames(): Promise<string[]> {
   for (const b of blobs) s.add(b.basename);
   return [...s];
 }
+
+/** Duplicated from `lib/cardGallerySort.ts` — lives here so upload route avoids `../lib/` on Vercel. */
+const RE_CARD_INDEX = /^CARD \((\d+)\)\.png$/i;
+
+export function maxCardIndexFromBasenames(basenames: string[]): number {
+  let max = 0;
+  for (const n of basenames) {
+    const m = n.match(RE_CARD_INDEX);
+    if (m) {
+      const v = Number.parseInt(m[1]!, 10);
+      if (v > max) max = v;
+    }
+  }
+  return max;
+}
+
+export function nextNumberedCardBasename(basenames: string[]): string {
+  return `CARD (${maxCardIndexFromBasenames(basenames) + 1}).png`;
+}

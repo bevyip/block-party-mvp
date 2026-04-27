@@ -2,6 +2,10 @@
  * Collectible card filenames under `public/cards` (PNG only).
  * Keep in sync with any server that lists the same folder.
  *
+ * Do not import this module from `api/*.ts` — Vercel serverless can fail to bundle `../lib/`.
+ * `api/cards-gallery.ts` duplicates sort/merge here; `api/collectibleCardInventory.ts` holds
+ * `nextNumberedCardBasename` for uploads.
+ *
  * Order: `CARD.png` first (index 0), then `CARD (1).png` … `CARD (n).png` ascending,
  * then legacy `upload-*.png` (by embedded timestamp), then any other names.
  */
@@ -9,24 +13,6 @@
 const RE_CARD_NUMBERED = /^CARD \((\d+)\)\.png$/i;
 const RE_CARD_BASE = /^CARD\.png$/i;
 const RE_UPLOAD = /^upload-([a-z0-9]+)-/i;
-
-/** Max `n` from `CARD (n).png` in the set; 0 if none. */
-export function maxCardIndexFromBasenames(basenames: string[]): number {
-  let max = 0;
-  for (const n of basenames) {
-    const m = n.match(RE_CARD_NUMBERED);
-    if (m) {
-      const v = Number.parseInt(m[1]!, 10);
-      if (v > max) max = v;
-    }
-  }
-  return max;
-}
-
-/** Next filename after all existing `CARD (n).png` (Vercel / local union). */
-export function nextNumberedCardBasename(basenames: string[]): string {
-  return `CARD (${maxCardIndexFromBasenames(basenames) + 1}).png`;
-}
 
 type Sortable = { name: string; tier: 0 | 1 | 2; a: number; b: string };
 
