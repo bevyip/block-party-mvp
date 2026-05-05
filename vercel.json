@@ -1,5 +1,10 @@
 {
   "devCommand": "vite",
+  "functions": {
+    "api/save-sprite.ts": {
+      "memory": 1024
+    }
+  },
   "rewrites": [
     {
       "source": "/generated-sprites/:path*",

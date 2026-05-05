@@ -1,5 +1,16 @@
+import { createRequire } from "node:module";
 import { get, put } from "@vercel/blob";
-import { manifestStage2FromBrief } from "../lib/generatedSprites";
+
+/**
+ * Do not import `../lib/*.ts` here — Vercel often fails to bundle paths outside `api/`
+ * (`FUNCTION_INVOCATION_FAILED`). Same pattern as `api/brief.ts` + `api/manifestStage2.cjs`.
+ */
+const require = createRequire(import.meta.url);
+const { manifestStage2FromBrief } = require("./manifestStage2.cjs") as {
+  manifestStage2FromBrief: (
+    brief: unknown,
+  ) => Record<string, unknown> | undefined;
+};
 
 type CustomStateSpec = {
   stateName: string;
