@@ -64,7 +64,6 @@ function imageToFrontPartyCell(
       try {
         const nw = img.naturalWidth;
         const nh = img.naturalHeight;
-        console.log("[partyOverlay] finish", { nw, nh, aspect: nw / nh });
         if (nw < 1 || nh < 1) {
           resolve(null);
           return;
@@ -98,7 +97,6 @@ function imageToFrontPartyCell(
           ctx.drawImage(img, 0, 0, nw, nh, 0, 0, CELL_DISPLAY, CELL_DISPLAY);
         }
         const result = c.toDataURL("image/png");
-        console.log("[partyOverlay] toDataURL ok", result.slice(0, 40));
         resolve(result);
       } catch (e) {
         console.error("[partyOverlay] finish threw", e);
@@ -173,15 +171,7 @@ export function AddToPartyOverlay({
     const src = toImageSrc(stage3aUrl);
 
     void (async () => {
-      console.log(
-        "[partyOverlay] stage3aUrl received",
-        stage3aUrl.slice(0, 60),
-      );
       const cell = await imageToFrontPartyCell(src);
-      console.log(
-        "[partyOverlay] cell result",
-        cell ? cell.slice(0, 40) : null,
-      );
       if (cancelled) return;
       if (cell) {
         setFrontUrl(cell);
