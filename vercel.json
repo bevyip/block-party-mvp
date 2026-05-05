@@ -1,6 +1,10 @@
 {
   "devCommand": "vite",
   "rewrites": [
+    {
+      "source": "/generated-sprites/:path*",
+      "destination": "/api/generated-sprite-proxy?path=:path*"
+    },
     { "source": "/", "destination": "/index.html" },
     { "source": "/pipeline", "destination": "/pipeline.html" },
     { "source": "/pipeline/", "destination": "/pipeline.html" },

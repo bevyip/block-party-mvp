@@ -50,6 +50,22 @@ function uniqueColors(list: string[]): string[] {
   return out;
 }
 
+/** Vercel/HTML error pages are not JSON — parse safely so UI shows a message instead of SyntaxError. */
+async function readJsonFromResponse<T = unknown>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text.trim()) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const hint = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    throw new Error(
+      res.ok
+        ? `Server returned non-JSON (${hint || "empty body"})`
+        : `Request failed (${res.status}): ${hint || "unknown error"}`,
+    );
+  }
+}
+
 async function loadImageAsBase64(url: string): Promise<{
   base64: string;
   mimeType: "image/png" | "image/jpeg";
@@ -707,7 +723,7 @@ export default function PipelinePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interpretation: source }),
       });
-      const data = (await res.json()) as {
+      const data = (await readJsonFromResponse(res)) as {
         designBrief?: DesignBrief;
         error?: string;
       };
@@ -782,7 +798,7 @@ export default function PipelinePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64, mimeType }),
       });
-      const data = (await res.json()) as {
+      const data = (await readJsonFromResponse(res)) as {
         interpretation?: Interpretation;
         error?: string;
       };
@@ -870,7 +886,7 @@ export default function PipelinePage() {
             ...(customSpec ? { customSpec } : {}),
           }),
         });
-        const data = (await res.json()) as {
+        const data = (await readJsonFromResponse(res)) as {
           id?: string;
           savedStates?: string[];
           stateUrls?: Record<string, string>;
@@ -972,7 +988,7 @@ export default function PipelinePage() {
             themeSummary: brief.theme_summary,
           }),
         });
-        const data = (await res.json()) as {
+        const data = (await readJsonFromResponse(res)) as {
           idle?: string | null;
           walk?: string | null;
           custom?: string | null;
