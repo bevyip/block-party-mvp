@@ -1,0 +1,58 @@
+{
+  "object": "abstract light cluster",
+  "gender": "female",
+  "themeSummary": "A lively and energetic female figure with short, spiky multi-colored hair and a bright smile, dressed in a vibrant blue tunic with pink and yellow accents, dark blue speckled leggings, and bright white athletic shoes.",
+  "brief": {
+    "gender": "female",
+    "hair": {
+      "style": "short, spiky and layered",
+      "color": "#ffe600",
+      "description": "Short, spiky, multi-layered hair styled to resemble a luminous burst of light, with strands in shimmering yellow, pink (#ff5ecb), and hints of blue (#1a6fff) and green (#0a7d32)."
+    },
+    "face": {
+      "expression": "bright, energetic smile",
+      "markings": "star-like light patterns",
+      "description": "A wide, energetic smile and bright, sparkling eyes, with small, star-like patterns in white (#f0f0f0) scattered around the cheekbones, giving a luminous quality."
+    },
+    "torso": {
+      "style": "fitted, sleeveless tunic",
+      "primary_color": "#1a6fff",
+      "secondary_color": "#ff5ecb",
+      "description": "A vibrant blue sleeveless tunic with an asymmetrical design featuring layered pink and yellow (#ffe600) overlay panels, designed to evoke clustered light, adorned with tiny white (#f0f0f0) dots that suggest radiating energy."
+    },
+    "legs": {
+      "style": "form-fitting leggings",
+      "color": "#1a6fff",
+      "description": "Form-fitting dark blue leggings adorned with a scattered pattern of bright green (#0a7d32) and yellow (#ffe600) speckles, creating a dynamic, light-infused effect."
+    },
+    "shoes": {
+      "color": "#f0f0f0",
+      "description": "Lightweight athletic shoes in brilliant white with pink (#ff5ecb) lacing and luminous yellow (#ffe600) accents on the soles, suggesting a swift, energetic gait."
+    },
+    "theme_summary": "A lively and energetic female figure with short, spiky multi-colored hair and a bright smile, dressed in a vibrant blue tunic with pink and yellow accents, dark blue speckled leggings, and bright white athletic shoes.",
+    "theme_elements": [
+      "Luminous burst hair",
+      "Multi-colored spikes",
+      "Energetic expression",
+      "Star-like facial patterns",
+      "Clustered light tunic",
+      "Asymmetrical layering",
+      "Scattered light leggings",
+      "Vibrant color palette",
+      "Radiating energy",
+      "Dynamic silhouette"
+    ],
+    "speech_tease_phrases": [
+      "Bright wide smile",
+      "White swift shoes",
+      "Pink-blue strands",
+      "Yellow light patterns",
+      "Green speckled leggings",
+      "Luminous cheek dots",
+      "Pink lacing detail",
+      "Spiky yellow hair"
+    ],
+    "skin_tone": "tan"
+  },
+  "createdAt": "2026-04-21T04:27:21.416Z"
+}

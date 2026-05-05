@@ -741,10 +741,6 @@ const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(
 
       setAddToPartyViewOpen(false);
 
-      const hasPersistRefs = Boolean(
-        spriteData && brief && interpretation && stage3aRawBase64,
-      );
-
       if (isSavingToMap) {
         broadcast({
           stage: "add_to_party_overlay_complete",
@@ -752,13 +748,10 @@ const SidePanel = forwardRef<SidePanelHandle, SidePanelProps>(
         });
         return;
       }
-
-      if (!hasPersistRefs) {
-        /** Let `/pipeline` run `handleSave` — do not skip after we failed to gather refs here. */
+      if (!spriteData || !brief || !interpretation || !stage3aRawBase64) {
         broadcast({ stage: "add_to_party_overlay_complete" });
         return;
       }
-
       broadcast({
         stage: "add_to_party_overlay_complete",
         payload: { skipPipelinePersist: true },

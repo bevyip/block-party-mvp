@@ -1,0 +1,56 @@
+{
+  "object": "Abstract light cluster",
+  "gender": "female",
+  "themeSummary": "A female character with voluminous yellow hair styled into several glowing clusters, her face bearing an enigmatic smile and luminous dot markings, dressed in a deep blue layered tunic adorned with pink and yellow circular patterns, flowing emerald green trousers, and simple yellow shoes with a subtle glow.",
+  "brief": {
+    "gender": "female",
+    "hair": {
+      "style": "Voluminous clustered buns",
+      "color": "#ffe600",
+      "description": "Styled into three prominent, irregularly shaped buns, appearing to glow with a soft light, reminiscent of luminous spheres."
+    },
+    "face": {
+      "expression": "Enigmatic smile",
+      "markings": "Scattered luminous dots",
+      "description": "A gentle, knowing smile with eyes that seem to hold a luminous depth. Small, multi-colored circular markings dot her cheekbones like scattered light."
+    },
+    "torso": {
+      "style": "Layered tunic with circular motifs",
+      "primary_color": "#1a6fff",
+      "secondary_color": "#ff5ecb",
+      "description": "A flowing tunic, deep blue like a twilight sky, adorned with scattered glowing circular patterns in pink and yellow. The silhouette is soft and slightly asymmetrical."
+    },
+    "legs": {
+      "style": "Flowing trousers",
+      "color": "#0a7d32",
+      "description": "Loose-fitting trousers in a deep emerald green, offering a sense of fluid movement that complements the tunic."
+    },
+    "shoes": {
+      "color": "#ffe600",
+      "description": "Simple, flat shoes with a subtle glowing trim, matching the vibrant yellow of her hair."
+    },
+    "theme_summary": "A female character with voluminous yellow hair styled into several glowing clusters, her face bearing an enigmatic smile and luminous dot markings, dressed in a deep blue layered tunic adorned with pink and yellow circular patterns, flowing emerald green trousers, and simple yellow shoes with a subtle glow.",
+    "theme_elements": [
+      "Glowing clustered hair",
+      "Luminous facial markings",
+      "Organic, flowing silhouette",
+      "Multi-colored circular patterns",
+      "Vibrant color accents",
+      "Mysterious aura",
+      "Dark-light contrast",
+      "Peg-like details"
+    ],
+    "speech_tease_phrases": [
+      "Scattered luminous dots",
+      "Yellow cluster-hair",
+      "Bright mysterious gaze",
+      "Irregular luminous shapes",
+      "Organic layered drape",
+      "Pink glow accents",
+      "Vibrant peg-like patterns",
+      "Flowing emerald trousers"
+    ],
+    "skin_tone": "dark"
+  },
+  "createdAt": "2026-04-24T20:17:49.195Z"
+}

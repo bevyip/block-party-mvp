@@ -49,7 +49,3 @@ api-server.cjs
 
 # Collectible cards — can live only in Vercel Blob; gallery uses GET /api/cards-gallery
 public/cards/
-
-# Generated sprites — ignore per-sprite asset trees; keep manifest.json tracked
-public/generated-sprites/*/
-!public/generated-sprites/manifest.json

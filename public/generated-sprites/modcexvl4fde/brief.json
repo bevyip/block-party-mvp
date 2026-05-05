@@ -1,0 +1,56 @@
+{
+  "object": "hamburger",
+  "gender": "male",
+  "themeSummary": "A cheerful male character with fluffy yellow hair resembling a bun, a wide inviting smile, wearing a layered tunic of bright yellow and red with green accents, tailored orange shorts, and rounded yellow sneakers.",
+  "brief": {
+    "gender": "male",
+    "hair": {
+      "style": "Voluminous, rounded, with subtle texture",
+      "color": "#ffe600",
+      "description": "A voluminous, rounded hairstyle that evokes the top of a brioche bun, subtly textured with tiny flecks of light grey."
+    },
+    "face": {
+      "expression": "Cheerful and inviting",
+      "markings": "Subtle orange dots on cheeks",
+      "description": "A wide, inviting smile with bright, optimistic eyes, featuring subtle orange freckle-like dots on the cheeks to represent glowing pegs."
+    },
+    "torso": {
+      "style": "Layered tunic and vest",
+      "primary_color": "#e81c2a",
+      "secondary_color": "#ffe600",
+      "description": "A layered tunic. The underlayer is a bright yellow, topped by a vibrant red vest that suggests a thick slice of tomato, with a green ruffle peeking from the collar."
+    },
+    "legs": {
+      "style": "Relaxed-fit shorts",
+      "color": "#ff8c00",
+      "description": "Relaxed-fit shorts in a crisp orange hue, reminiscent of freshly fried potato sticks, with a slight crumple effect."
+    },
+    "shoes": {
+      "color": "#ffe600",
+      "description": "Sturdy, rounded yellow sneakers, designed to resemble the soft bottom bun of a hamburger."
+    },
+    "theme_summary": "A cheerful male character with fluffy yellow hair resembling a bun, a wide inviting smile, wearing a layered tunic of bright yellow and red with green accents, tailored orange shorts, and rounded yellow sneakers.",
+    "theme_elements": [
+      "Fluffy yellow hair (bun)",
+      "Rounded hair shape",
+      "Wide inviting smile",
+      "Subtle orange cheek freckles (glowing pegs)",
+      "Layered yellow and red tunic (cheese, tomato patty)",
+      "Green ruffle accents (lettuce)",
+      "Tailored orange shorts (fries)",
+      "Rounded yellow sneakers (bottom bun)"
+    ],
+    "speech_tease_phrases": [
+      "Fresh green frill",
+      "Sunny expression",
+      "Fluffy golden hair",
+      "Warm yellow shirt",
+      "Rounded hair dome",
+      "Vivid red vest",
+      "Smooth yellow shoes",
+      "Layered top colors"
+    ],
+    "skin_tone": "dark"
+  },
+  "createdAt": "2026-04-24T20:08:18.945Z"
+}

@@ -1,0 +1,63 @@
+{
+  "object": "Multicolored glowing formation",
+  "gender": "female",
+  "themeSummary": "A character with an energetic vibe, featuring voluminous blue-green-white layered hair, a bright joyful expression with shimmering yellow temple markings, wearing an asymmetrical white-and-blue glowing crop top, a flowing green-and-blue pleated midi skirt, and simple pink glowing ballet flats.",
+  "brief": {
+    "gender": "female",
+    "hair": {
+      "style": "Voluminous, spiky-layered waves",
+      "color": "#1a6fff",
+      "description": "Voluminous, multi-layered spiky waves, styled to appear as if a cluster of light, with strands primarily in bright blue (#1a6fff), accented with green (#0a7d32) streaks and shimmering white (#f0f0f0) highlights, giving an ethereal glowing effect."
+    },
+    "face": {
+      "expression": "Wide-eyed and joyful",
+      "markings": "Delicate, shimmering yellow cluster patterns near the temples",
+      "description": "A bright, open expression with wide, sparkling eyes and a joyful, slightly mischievous smile, complemented by delicate, shimmering yellow (#ffe600) dots forming a 'cluster' pattern near the temples."
+    },
+    "torso": {
+      "style": "Asymmetrical, layered crop top with jagged hemline",
+      "primary_color": "#f0f0f0",
+      "secondary_color": "#1a6fff",
+      "description": "A form-fitting yet flexible crop top featuring multiple overlapping, asymmetrical layers in crisp white (#f0f0f0), with vibrant blue (#1a6fff) accents peeking through, and a faint green (#0a7d32) glow emanating from the seams."
+    },
+    "legs": {
+      "style": "Flowing, irregular pleated midi skirt",
+      "color": "#0a7d32",
+      "description": "A vibrant green (#0a7d32) midi skirt with irregular pleats that give it a clustered, layered appearance, featuring a subtle gradient into blue (#1a6fff) towards the hem, creating a light, airy movement."
+    },
+    "shoes": {
+      "color": "#ff5ecb",
+      "description": "Simple, glowing ballet flats in bright pink (#ff5ecb) with a single cluster-shaped gem on each toe."
+    },
+    "theme_summary": "A character with an energetic vibe, featuring voluminous blue-green-white layered hair, a bright joyful expression with shimmering yellow temple markings, wearing an asymmetrical white-and-blue glowing crop top, a flowing green-and-blue pleated midi skirt, and simple pink glowing ballet flats.",
+    "theme_elements": [
+      "Voluminous layered spiky hair",
+      "Blue-green-white hair colors",
+      "Ethereal glowing effect hair",
+      "Bright joyful expression",
+      "Shimmering yellow cluster temple markings",
+      "Asymmetrical layered crop top",
+      "White and blue top",
+      "Subtle green glowing seams on top",
+      "Flowing irregular pleated midi skirt",
+      "Green and blue gradient skirt",
+      "Pink glowing ballet flats",
+      "Cluster-shaped gem on shoes",
+      "Energetic and playful mood",
+      "Irregular shapes in design",
+      "Multicolored glowing details"
+    ],
+    "speech_tease_phrases": [
+      "Pink glowing flats",
+      "Asymmetrical white top",
+      "Irregular layered style",
+      "Gradient blue hem",
+      "Ethereal light spirit",
+      "Voluminous blue waves",
+      "Flowing green skirt",
+      "Blue-lined crop"
+    ],
+    "skin_tone": "dark"
+  },
+  "createdAt": "2026-04-21T02:03:09.794Z"
+}

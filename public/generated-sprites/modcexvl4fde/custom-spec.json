@@ -1,0 +1,9 @@
+{
+  "stateName": "special",
+  "frameCount": 3,
+  "directionRows": 4,
+  "description": "Custom animation",
+  "looping": true,
+  "fps": 8,
+  "rowOrder": "up_left_down_right"
+}

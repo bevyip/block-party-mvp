@@ -1,0 +1,56 @@
+{
+  "object": "flower",
+  "gender": "female",
+  "themeSummary": "A captivating individual with voluminous orange waves, a gentle smile gracing her face, dressed in a vibrant orange gown with green leaf accents that flows like petals, completed by delicate pink slippers.",
+  "brief": {
+    "gender": "female",
+    "hair": {
+      "style": "Long, flowing waves styled to resemble unfurling petals",
+      "color": "#ff8c00",
+      "description": "Long, voluminous hair styled into soft, flowing waves that mimic unfurling flower petals, rendered in a vibrant orange hue."
+    },
+    "face": {
+      "expression": "Serene and gently smiling",
+      "markings": "Subtle luminous freckles around the eyes",
+      "description": "A serene and inviting expression, with a gentle smile gracing her lips and bright, lively eyes that suggest a vibrant inner spirit."
+    },
+    "torso": {
+      "style": "Elegant, floor-length gown with petal-like layers",
+      "primary_color": "#ff8c00",
+      "secondary_color": "#0a7d32",
+      "description": "A graceful, floor-length gown featuring an orange bodice that transitions into voluminous, layered skirt panels resembling unfurling petals, accented with delicate green leaf-like embroidery along the waist and hem."
+    },
+    "legs": {
+      "style": "Long gown conceals the lower body",
+      "color": "#0a7d32",
+      "description": "Her legs are mostly concealed by the sweeping hem of her vibrant gown, though the rich dark green of the underlayers or implied hosiery provides a deep, stem-like base."
+    },
+    "shoes": {
+      "color": "#ff5ecb",
+      "description": "Delicate, low-heeled slippers adorned with a small, stylized leaf clasp, perfectly matching the romantic floral theme."
+    },
+    "theme_summary": "A captivating individual with voluminous orange waves, a gentle smile gracing her face, dressed in a vibrant orange gown with green leaf accents that flows like petals, completed by delicate pink slippers.",
+    "theme_elements": [
+      "Orange petal-like waves",
+      "Green leaf embroidery",
+      "Glowing floral accents",
+      "Romantic bloom motif",
+      "Graceful gown silhouette",
+      "Dewdrop-like freckles",
+      "Vibrant flower essence",
+      "Petal-layered skirt"
+    ],
+    "speech_tease_phrases": [
+      "Gentle radiant air",
+      "Petal-shaped coiffure",
+      "Vibrant blossom hues",
+      "Deep forest trim",
+      "Softly smiling face",
+      "Elegant floral dress",
+      "Rosy slipper clasps",
+      "Chic ballet slippers"
+    ],
+    "skin_tone": "fair"
+  },
+  "createdAt": "2026-04-22T04:18:12.701Z"
+}
